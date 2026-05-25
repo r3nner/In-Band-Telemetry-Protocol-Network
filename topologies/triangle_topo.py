@@ -9,7 +9,10 @@ from mininet.net import Mininet
 from p4_mininet import P4Host, P4Switch
 
 
-def build_net(p4_json: str, sw_path: str, thrift_base: int) -> Mininet:
+DEFAULT_LINK_BW_MBPS = 10.0
+
+
+def build_net(p4_json: str, sw_path: str, thrift_base: int, link_bw_mbps: float) -> Mininet:
     net = Mininet(controller=None, build=False, host=P4Host, link=TCLink, autoSetMacs=False)
 
     h1 = net.addHost("h1", ip="10.0.0.1/24", mac="00:00:00:00:01:01")
@@ -44,11 +47,11 @@ def build_net(p4_json: str, sw_path: str, thrift_base: int) -> Mininet:
     # s1:1-h1, 2-s2, 3-s3
     # s2:1-s1, 2-s3
     # s3:1-s1, 2-s2, 3-h2
-    net.addLink(h1, s1, port2=1)
-    net.addLink(s1, s2, port1=2, port2=1)
-    net.addLink(s1, s3, port1=3, port2=1)
-    net.addLink(s2, s3, port1=2, port2=2)
-    net.addLink(s3, h2, port1=3)
+    net.addLink(h1, s1, port2=1, bw=link_bw_mbps)
+    net.addLink(s1, s2, port1=2, port2=1, bw=link_bw_mbps)
+    net.addLink(s1, s3, port1=3, port2=1, bw=link_bw_mbps)
+    net.addLink(s2, s3, port1=2, port2=2, bw=link_bw_mbps)
+    net.addLink(s3, h2, port1=3, bw=link_bw_mbps)
 
     net.build()
     s1.start([])
@@ -76,19 +79,28 @@ def main() -> None:
     parser.add_argument("--switch-bin", default="simple_switch", help="Path to simple_switch binary")
     parser.add_argument("--thrift-base", type=int, default=9090, help="Thrift base port (S1=base)")
     parser.add_argument(
+        "--link-bw-mbps",
+        type=float,
+        default=DEFAULT_LINK_BW_MBPS,
+        help="Bandwidth for each Mininet link in Mbps",
+    )
+    parser.add_argument(
         "--no-cli",
         action="store_true",
         help="Start topology, run quick ping tests, then exit",
     )
     args = parser.parse_args()
 
-    net = build_net(args.json, args.switch_bin, args.thrift_base)
+    net = build_net(args.json, args.switch_bin, args.thrift_base, args.link_bw_mbps)
 
     info("\nTopology started. Next steps:\n")
     info("  1) ./control_plane/program_triangle.sh\n")
     info("  2) h1 ping -c 3 10.0.20.2\n")
     info("  3) h1 ping -c 3 10.0.30.2\n")
     info("  4) python3 control_plane/read_latency.py --thrift-port 9090 --indices 2,3\n\n")
+    info(
+        f"  5) python3 control_plane/read_transmission_delay.py --thrift-port 9090 --indices 2,3 --link-bw-mbps {args.link_bw_mbps}\n\n"
+    )
 
     if args.no_cli:
         h1 = net.get("h1")
