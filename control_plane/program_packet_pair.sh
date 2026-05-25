@@ -1,14 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Programs S1/S2 for linear topology:
-# H1 <-> S1 <-> S2 <-> H2
+# Programs the packet-pair topology for out-of-band probes.
 #
-# Default thrift ports follow topologies/linear_topo.py.
+# Topology:
+#   H1 <-> S1 <-> S2 <-> H2
+#   probe_s1 <-> S1
+#   probe_s2 <-> S2
+#
+# Probe frames use EtherType 0x88B5 and msg_type=2.
 
 S1_THRIFT_PORT="${S1_THRIFT_PORT:-9090}"
 S2_THRIFT_PORT="${S2_THRIFT_PORT:-9091}"
-PROBE_INTERVAL_US="${PROBE_INTERVAL_US:-1000000}"
 
 wait_for_thrift() {
     local thrift_port="$1"
@@ -41,39 +44,29 @@ run_cli() {
 }
 
 S1_COMMANDS='reset_state
-mirroring_add 250 2
 
+# Existing IPv4 forwarding is kept so h1/h2 can still be used for regression tests.
 table_add ipv4_lpm ipv4_forward 10.0.0.2/32 => 00:00:00:00:02:02 00:aa:00:00:01:02 2
 table_add ipv4_lpm ipv4_forward 10.0.0.1/32 => 00:00:00:00:01:01 00:aa:00:00:01:01 1
 
-table_add probe_profile enable_probe 2 => 2 1 250
-register_write probe_interval_reg 2 __PROBE_INTERVAL_US__
-register_write last_probe_ts_reg 2 0
-register_write throughput_reg 2 0
-register_write throughput_reg 1 0
+# Packet-pair probe path: probe_s2 MAC always leaves S1 via port 2 toward S2.
+table_add pair_l2_forward pair_forward 00:00:00:00:0A:02 => 00:aa:00:00:01:02 00:aa:00:00:01:01 2
 '
 
 S2_COMMANDS='reset_state
-mirroring_add 250 1
 
 table_add ipv4_lpm ipv4_forward 10.0.0.2/32 => 00:00:00:00:02:02 00:aa:00:00:02:02 2
 table_add ipv4_lpm ipv4_forward 10.0.0.1/32 => 00:00:00:00:01:01 00:aa:00:00:02:01 1
 
-table_add probe_profile enable_probe 1 => 1 2 250
-register_write probe_interval_reg 1 __PROBE_INTERVAL_US__
-register_write last_probe_ts_reg 1 0
-register_write throughput_reg 1 0
-register_write throughput_reg 2 0
+# Packet-pair probe path: probe_s2 MAC leaves S2 via port 3 toward probe_s2.
+table_add pair_l2_forward pair_forward 00:00:00:00:0A:02 => 00:aa:00:00:02:03 00:aa:00:00:02:02 3
 '
-
-S1_COMMANDS="${S1_COMMANDS//__PROBE_INTERVAL_US__/${PROBE_INTERVAL_US}}"
-S2_COMMANDS="${S2_COMMANDS//__PROBE_INTERVAL_US__/${PROBE_INTERVAL_US}}"
 
 run_cli "${S1_THRIFT_PORT}" "s1" "${S1_COMMANDS}"
 run_cli "${S2_THRIFT_PORT}" "s2" "${S2_COMMANDS}"
 
 echo
 
-echo "Linear topology control plane loaded."
-echo "Use python3 control_plane/read_latency.py --thrift-port ${S1_THRIFT_PORT} --indices 2"
-echo "Telemetry probe interval: ${PROBE_INTERVAL_US} us"
+echo "Packet-pair control plane loaded."
+echo "Start the receiver first: sudo python3 control_plane/sniff_probes.py --iface probe_s2-eth0"
+echo "Then transmit: sudo python3 control_plane/send_probes.py --iface probe_s1-eth0"
