@@ -45,7 +45,7 @@ def read_latency_once(thrift_port: int, register_name: str, indices: List[int]) 
             "Could not parse all register indices from CLI output. "
             f"Missing: {missing}\nRaw output:\n{output}"
         )
-    return parsed
+    return parsed, output
 
 
 def fmt_line(index: int, ticks: int, tick_ms: float) -> str:
@@ -75,6 +75,11 @@ def main() -> int:
         type=float,
         default=0.001,
         help="How many milliseconds each register tick represents",
+    )
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Print raw CLI output for diagnostics",
     )
     parser.add_argument(
         "--tick-us",
@@ -108,10 +113,25 @@ def main() -> int:
     while True:
         ts = dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         try:
-            values = read_latency_once(args.thrift_port, args.register, indices)
+            values, raw_output = read_latency_once(args.thrift_port, args.register, indices)
             print(ts)
+            all_zero = True
             for idx in indices:
+                if values.get(idx, 0) != 0:
+                    all_zero = False
                 print("  " + fmt_line(idx, values[idx], tick_ms))
+
+            # diagnostics: when everything is zero, optionally show raw CLI output
+            if all_zero:
+                hint = (
+                    "All latency register values are zero. Ensure probe traffic is being sent (e.g. run a ping from h1 to h2) "
+                    "and that the control plane programmed `probe_profile` and `probe_interval_reg`."
+                )
+                print(f"  WARNING: {hint}")
+                if args.verbose:
+                    print("\n--- raw simple_switch_CLI output ---")
+                    print(raw_output)
+                    print("--- end raw output ---\n")
         except Exception as exc:  # pylint: disable=broad-except
             print(f"{ts} ERROR: {exc}", file=sys.stderr)
 

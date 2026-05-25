@@ -8,8 +8,12 @@
         ["tmp_0", 32, false],
         ["tmp_1", 32, false],
         ["tmp_2", 32, false],
-        ["tmp_3", 48, false],
+        ["tmp_3", 32, false],
         ["tmp_4", 32, false],
+        ["tmp_5", 32, false],
+        ["tmp_6", 48, false],
+        ["tmp_7", 32, false],
+        ["prev_bytes_0", 64, false],
         ["prop_rtt_0", 48, false],
         ["metadata.clone_session_id", 32, false],
         ["metadata.probe_index", 8, false],
@@ -262,7 +266,7 @@
       "id" : 0,
       "source_info" : {
         "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
-        "line" : 340,
+        "line" : 378,
         "column" : 8,
         "source_fragment" : "MyDeparser"
       },
@@ -278,7 +282,7 @@
       "id" : 0,
       "source_info" : {
         "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
-        "line" : 132,
+        "line" : 129,
         "column" : 24,
         "source_fragment" : "latency_reg"
       },
@@ -290,7 +294,7 @@
       "id" : 1,
       "source_info" : {
         "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
-        "line" : 135,
+        "line" : 132,
         "column" : 24,
         "source_fragment" : "probe_interval_reg"
       },
@@ -302,7 +306,7 @@
       "id" : 2,
       "source_info" : {
         "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
-        "line" : 138,
+        "line" : 135,
         "column" : 24,
         "source_fragment" : "last_probe_ts_reg"
       },
@@ -313,13 +317,25 @@
       "name" : "throughput_reg",
       "id" : 3,
       "source_info" : {
-        "filename" : "/home/p4/Documents/Latency-Telemetry/p4/main.p4",
-        "line" : 141,
+        "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
+        "line" : 138,
         "column" : 24,
         "source_fragment" : "throughput_reg"
       },
       "size" : 1024,
       "bitwidth" : 64
+    },
+    {
+      "name" : "packet_length_reg",
+      "id" : 4,
+      "source_info" : {
+        "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
+        "line" : 141,
+        "column" : 24,
+        "source_fragment" : "packet_length_reg"
+      },
+      "size" : 1024,
+      "bitwidth" : 32
     }
   ],
   "calculations" : [
@@ -328,7 +344,7 @@
       "id" : 0,
       "source_info" : {
         "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
-        "line" : 318,
+        "line" : 356,
         "column" : 8,
         "source_fragment" : "update_checksum( ..."
       },
@@ -398,7 +414,7 @@
           ],
           "source_info" : {
             "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
-            "line" : 147,
+            "line" : 150,
             "column" : 8,
             "source_fragment" : "mark_to_drop(standard_metadata)"
           }
@@ -420,7 +436,7 @@
           ],
           "source_info" : {
             "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
-            "line" : 147,
+            "line" : 150,
             "column" : 8,
             "source_fragment" : "mark_to_drop(standard_metadata)"
           }
@@ -442,7 +458,29 @@
           ],
           "source_info" : {
             "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
-            "line" : 147,
+            "line" : 150,
+            "column" : 8,
+            "source_fragment" : "mark_to_drop(standard_metadata)"
+          }
+        }
+      ]
+    },
+    {
+      "name" : "MyIngress.drop",
+      "id" : 3,
+      "runtime_data" : [],
+      "primitives" : [
+        {
+          "op" : "mark_to_drop",
+          "parameters" : [
+            {
+              "type" : "header",
+              "value" : "standard_metadata"
+            }
+          ],
+          "source_info" : {
+            "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
+            "line" : 150,
             "column" : 8,
             "source_fragment" : "mark_to_drop(standard_metadata)"
           }
@@ -451,7 +489,7 @@
     },
     {
       "name" : "MyIngress.ipv4_forward",
-      "id" : 3,
+      "id" : 4,
       "runtime_data" : [
         {
           "name" : "dst_mac",
@@ -481,7 +519,7 @@
           ],
           "source_info" : {
             "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
-            "line" : 152,
+            "line" : 155,
             "column" : 8,
             "source_fragment" : "standard_metadata.egress_spec = port"
           }
@@ -500,7 +538,7 @@
           ],
           "source_info" : {
             "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
-            "line" : 153,
+            "line" : 156,
             "column" : 8,
             "source_fragment" : "hdr.ethernet.dstAddr = dst_mac"
           }
@@ -519,7 +557,7 @@
           ],
           "source_info" : {
             "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
-            "line" : 154,
+            "line" : 157,
             "column" : 8,
             "source_fragment" : "hdr.ethernet.srcAddr = src_mac"
           }
@@ -587,8 +625,85 @@
       ]
     },
     {
+      "name" : "MyIngress.pair_forward",
+      "id" : 5,
+      "runtime_data" : [
+        {
+          "name" : "dst_mac",
+          "bitwidth" : 48
+        },
+        {
+          "name" : "src_mac",
+          "bitwidth" : 48
+        },
+        {
+          "name" : "port",
+          "bitwidth" : 9
+        }
+      ],
+      "primitives" : [
+        {
+          "op" : "assign",
+          "parameters" : [
+            {
+              "type" : "field",
+              "value" : ["standard_metadata", "egress_spec"]
+            },
+            {
+              "type" : "runtime_data",
+              "value" : 2
+            }
+          ],
+          "source_info" : {
+            "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
+            "line" : 167,
+            "column" : 8,
+            "source_fragment" : "standard_metadata.egress_spec = port"
+          }
+        },
+        {
+          "op" : "assign",
+          "parameters" : [
+            {
+              "type" : "field",
+              "value" : ["ethernet", "dstAddr"]
+            },
+            {
+              "type" : "runtime_data",
+              "value" : 0
+            }
+          ],
+          "source_info" : {
+            "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
+            "line" : 168,
+            "column" : 8,
+            "source_fragment" : "hdr.ethernet.dstAddr = dst_mac"
+          }
+        },
+        {
+          "op" : "assign",
+          "parameters" : [
+            {
+              "type" : "field",
+              "value" : ["ethernet", "srcAddr"]
+            },
+            {
+              "type" : "runtime_data",
+              "value" : 1
+            }
+          ],
+          "source_info" : {
+            "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
+            "line" : 169,
+            "column" : 8,
+            "source_fragment" : "hdr.ethernet.srcAddr = src_mac"
+          }
+        }
+      ]
+    },
+    {
       "name" : "MyIngress.enable_probe",
-      "id" : 4,
+      "id" : 6,
       "runtime_data" : [
         {
           "name" : "register_index",
@@ -618,7 +733,7 @@
           ],
           "source_info" : {
             "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
-            "line" : 164,
+            "line" : 174,
             "column" : 8,
             "source_fragment" : "meta.clone_enable = 1"
           }
@@ -637,7 +752,7 @@
           ],
           "source_info" : {
             "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
-            "line" : 165,
+            "line" : 175,
             "column" : 8,
             "source_fragment" : "meta.probe_index = register_index"
           }
@@ -656,7 +771,7 @@
           ],
           "source_info" : {
             "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
-            "line" : 166,
+            "line" : 176,
             "column" : 8,
             "source_fragment" : "meta.report_index = remote_index"
           }
@@ -675,7 +790,7 @@
           ],
           "source_info" : {
             "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
-            "line" : 167,
+            "line" : 177,
             "column" : 8,
             "source_fragment" : "meta.clone_session_id = clone_session_id"
           }
@@ -684,7 +799,7 @@
     },
     {
       "name" : "MyIngress.no_probe",
-      "id" : 5,
+      "id" : 7,
       "runtime_data" : [],
       "primitives" : [
         {
@@ -701,7 +816,7 @@
           ],
           "source_info" : {
             "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
-            "line" : 172,
+            "line" : 182,
             "column" : 8,
             "source_fragment" : "meta.clone_enable = 0"
           }
@@ -720,7 +835,7 @@
           ],
           "source_info" : {
             "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
-            "line" : 173,
+            "line" : 183,
             "column" : 8,
             "source_fragment" : "meta.probe_index = 0"
           }
@@ -739,7 +854,7 @@
           ],
           "source_info" : {
             "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
-            "line" : 174,
+            "line" : 184,
             "column" : 8,
             "source_fragment" : "meta.report_index = 0"
           }
@@ -758,7 +873,7 @@
           ],
           "source_info" : {
             "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
-            "line" : 175,
+            "line" : 185,
             "column" : 8,
             "source_fragment" : "meta.clone_session_id = 0"
           }
@@ -766,8 +881,8 @@
       ]
     },
     {
-      "name" : "main229",
-      "id" : 6,
+      "name" : "main265",
+      "id" : 8,
       "runtime_data" : [],
       "primitives" : [
         {
@@ -797,7 +912,7 @@
           ],
           "source_info" : {
             "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
-            "line" : 229,
+            "line" : 265,
             "column" : 44,
             "source_fragment" : "interval_idx"
           }
@@ -820,7 +935,7 @@
           ],
           "source_info" : {
             "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
-            "line" : 229,
+            "line" : 265,
             "column" : 20,
             "source_fragment" : "last_probe_ts_reg.write(interval_idx, meta.now_ts)"
           }
@@ -839,7 +954,7 @@
           ],
           "source_info" : {
             "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
-            "line" : 232,
+            "line" : 268,
             "column" : 20,
             "source_fragment" : "clone_preserving_field_list(CloneType.I2E, ..."
           }
@@ -847,8 +962,8 @@
       ]
     },
     {
-      "name" : "main222",
-      "id" : 7,
+      "name" : "main258",
+      "id" : 9,
       "runtime_data" : [],
       "primitives" : [
         {
@@ -865,7 +980,7 @@
           ],
           "source_info" : {
             "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
-            "line" : 222,
+            "line" : 258,
             "column" : 16,
             "source_fragment" : "meta.now_ts = standard_metadata.ingress_global_timestamp"
           }
@@ -897,7 +1012,7 @@
           ],
           "source_info" : {
             "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
-            "line" : 223,
+            "line" : 259,
             "column" : 61,
             "source_fragment" : "interval_idx"
           }
@@ -920,7 +1035,7 @@
           ],
           "source_info" : {
             "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
-            "line" : 223,
+            "line" : 259,
             "column" : 16,
             "source_fragment" : "probe_interval_reg.read(meta.probe_interval, interval_idx)"
           }
@@ -952,7 +1067,7 @@
           ],
           "source_info" : {
             "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
-            "line" : 224,
+            "line" : 260,
             "column" : 59,
             "source_fragment" : "interval_idx"
           }
@@ -975,7 +1090,7 @@
           ],
           "source_info" : {
             "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
-            "line" : 224,
+            "line" : 260,
             "column" : 16,
             "source_fragment" : "last_probe_ts_reg.read(meta.last_probe_ts, interval_idx)"
           }
@@ -983,8 +1098,232 @@
       ]
     },
     {
-      "name" : "main242",
-      "id" : 8,
+      "name" : "main249",
+      "id" : 10,
+      "runtime_data" : [],
+      "primitives" : [
+        {
+          "op" : "assign",
+          "parameters" : [
+            {
+              "type" : "field",
+              "value" : ["scalars", "tmp_2"]
+            },
+            {
+              "type" : "expression",
+              "value" : {
+                "type" : "expression",
+                "value" : {
+                  "op" : "&",
+                  "left" : {
+                    "type" : "field",
+                    "value" : ["standard_metadata", "egress_spec"]
+                  },
+                  "right" : {
+                    "type" : "hexstr",
+                    "value" : "0xffffffff"
+                  }
+                }
+              }
+            }
+          ],
+          "source_info" : {
+            "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
+            "line" : 249,
+            "column" : 44,
+            "source_fragment" : "th_idx"
+          }
+        },
+        {
+          "op" : "register_read",
+          "parameters" : [
+            {
+              "type" : "field",
+              "value" : ["scalars", "prev_bytes_0"]
+            },
+            {
+              "type" : "register_array",
+              "value" : "throughput_reg"
+            },
+            {
+              "type" : "field",
+              "value" : ["scalars", "tmp_2"]
+            }
+          ],
+          "source_info" : {
+            "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
+            "line" : 249,
+            "column" : 12,
+            "source_fragment" : "throughput_reg.read(prev_bytes, th_idx)"
+          }
+        },
+        {
+          "op" : "assign",
+          "parameters" : [
+            {
+              "type" : "field",
+              "value" : ["scalars", "prev_bytes_0"]
+            },
+            {
+              "type" : "expression",
+              "value" : {
+                "type" : "expression",
+                "value" : {
+                  "op" : "&",
+                  "left" : {
+                    "type" : "expression",
+                    "value" : {
+                      "op" : "+",
+                      "left" : {
+                        "type" : "field",
+                        "value" : ["scalars", "prev_bytes_0"]
+                      },
+                      "right" : {
+                        "type" : "expression",
+                        "value" : {
+                          "op" : "&",
+                          "left" : {
+                            "type" : "field",
+                            "value" : ["standard_metadata", "packet_length"]
+                          },
+                          "right" : {
+                            "type" : "hexstr",
+                            "value" : "0xffffffffffffffff"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "right" : {
+                    "type" : "hexstr",
+                    "value" : "0xffffffffffffffff"
+                  }
+                }
+              }
+            }
+          ],
+          "source_info" : {
+            "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
+            "line" : 250,
+            "column" : 12,
+            "source_fragment" : "prev_bytes = prev_bytes + (bit<64>)standard_metadata.packet_length"
+          }
+        },
+        {
+          "op" : "assign",
+          "parameters" : [
+            {
+              "type" : "field",
+              "value" : ["scalars", "tmp_3"]
+            },
+            {
+              "type" : "expression",
+              "value" : {
+                "type" : "expression",
+                "value" : {
+                  "op" : "&",
+                  "left" : {
+                    "type" : "field",
+                    "value" : ["standard_metadata", "egress_spec"]
+                  },
+                  "right" : {
+                    "type" : "hexstr",
+                    "value" : "0xffffffff"
+                  }
+                }
+              }
+            }
+          ],
+          "source_info" : {
+            "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
+            "line" : 251,
+            "column" : 33,
+            "source_fragment" : "th_idx"
+          }
+        },
+        {
+          "op" : "register_write",
+          "parameters" : [
+            {
+              "type" : "register_array",
+              "value" : "throughput_reg"
+            },
+            {
+              "type" : "field",
+              "value" : ["scalars", "tmp_3"]
+            },
+            {
+              "type" : "field",
+              "value" : ["scalars", "prev_bytes_0"]
+            }
+          ],
+          "source_info" : {
+            "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
+            "line" : 251,
+            "column" : 12,
+            "source_fragment" : "throughput_reg.write(th_idx, prev_bytes)"
+          }
+        },
+        {
+          "op" : "assign",
+          "parameters" : [
+            {
+              "type" : "field",
+              "value" : ["scalars", "tmp_4"]
+            },
+            {
+              "type" : "expression",
+              "value" : {
+                "type" : "expression",
+                "value" : {
+                  "op" : "&",
+                  "left" : {
+                    "type" : "field",
+                    "value" : ["standard_metadata", "egress_spec"]
+                  },
+                  "right" : {
+                    "type" : "hexstr",
+                    "value" : "0xffffffff"
+                  }
+                }
+              }
+            }
+          ],
+          "source_info" : {
+            "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
+            "line" : 254,
+            "column" : 36,
+            "source_fragment" : "th_idx"
+          }
+        },
+        {
+          "op" : "register_write",
+          "parameters" : [
+            {
+              "type" : "register_array",
+              "value" : "packet_length_reg"
+            },
+            {
+              "type" : "field",
+              "value" : ["scalars", "tmp_4"]
+            },
+            {
+              "type" : "field",
+              "value" : ["standard_metadata", "packet_length"]
+            }
+          ],
+          "source_info" : {
+            "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
+            "line" : 254,
+            "column" : 12,
+            "source_fragment" : "packet_length_reg.write(th_idx, standard_metadata.packet_length)"
+          }
+        }
+      ]
+    },
+    {
+      "name" : "main280",
+      "id" : 11,
       "runtime_data" : [],
       "primitives" : [
         {
@@ -1001,7 +1340,7 @@
           ],
           "source_info" : {
             "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
-            "line" : 242,
+            "line" : 280,
             "column" : 20,
             "source_fragment" : "meta.s2_ingress_time = standard_metadata.ingress_global_timestamp"
           }
@@ -1020,7 +1359,7 @@
           ],
           "source_info" : {
             "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
-            "line" : 245,
+            "line" : 283,
             "column" : 20,
             "source_fragment" : "hdr.telemetry.is_returning = 1"
           }
@@ -1039,7 +1378,7 @@
           ],
           "source_info" : {
             "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
-            "line" : 246,
+            "line" : 284,
             "column" : 20,
             "source_fragment" : "standard_metadata.egress_spec = standard_metadata.ingress_port"
           }
@@ -1047,8 +1386,8 @@
       ]
     },
     {
-      "name" : "main257",
-      "id" : 9,
+      "name" : "main295",
+      "id" : 12,
       "runtime_data" : [],
       "primitives" : [
         {
@@ -1108,7 +1447,7 @@
           ],
           "source_info" : {
             "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
-            "line" : 257,
+            "line" : 295,
             "column" : 24,
             "source_fragment" : "prop_rtt = total_rtt - t_proc"
           }
@@ -1116,8 +1455,8 @@
       ]
     },
     {
-      "name" : "main255",
-      "id" : 10,
+      "name" : "main293",
+      "id" : 13,
       "runtime_data" : [],
       "primitives" : [
         {
@@ -1134,7 +1473,7 @@
           ],
           "source_info" : {
             "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
-            "line" : 255,
+            "line" : 293,
             "column" : 20,
             "source_fragment" : "bit<48> prop_rtt = 0"
           }
@@ -1142,8 +1481,8 @@
       ]
     },
     {
-      "name" : "main265",
-      "id" : 11,
+      "name" : "main303",
+      "id" : 14,
       "runtime_data" : [],
       "primitives" : [
         {
@@ -1151,7 +1490,7 @@
           "parameters" : [
             {
               "type" : "field",
-              "value" : ["scalars", "tmp_2"]
+              "value" : ["scalars", "tmp_5"]
             },
             {
               "type" : "expression",
@@ -1173,7 +1512,7 @@
           ],
           "source_info" : {
             "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
-            "line" : 265,
+            "line" : 303,
             "column" : 38,
             "source_fragment" : "reg_index"
           }
@@ -1183,7 +1522,7 @@
           "parameters" : [
             {
               "type" : "field",
-              "value" : ["scalars", "tmp_3"]
+              "value" : ["scalars", "tmp_6"]
             },
             {
               "type" : "expression",
@@ -1215,7 +1554,7 @@
           ],
           "source_info" : {
             "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
-            "line" : 265,
+            "line" : 303,
             "column" : 49,
             "source_fragment" : "final_latency"
           }
@@ -1229,16 +1568,16 @@
             },
             {
               "type" : "field",
-              "value" : ["scalars", "tmp_2"]
+              "value" : ["scalars", "tmp_5"]
             },
             {
               "type" : "field",
-              "value" : ["scalars", "tmp_3"]
+              "value" : ["scalars", "tmp_6"]
             }
           ],
           "source_info" : {
             "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
-            "line" : 265,
+            "line" : 303,
             "column" : 20,
             "source_fragment" : "latency_reg.write(reg_index, final_latency)"
           }
@@ -1276,7 +1615,7 @@
           ],
           "source_info" : {
             "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
-            "line" : 269,
+            "line" : 307,
             "column" : 20,
             "source_fragment" : "hdr.telemetry.is_returning = 0"
           }
@@ -1318,7 +1657,7 @@
           ],
           "source_info" : {
             "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
-            "line" : 270,
+            "line" : 308,
             "column" : 20,
             "source_fragment" : "hdr.telemetry.latency_value = final_latency"
           }
@@ -1337,7 +1676,7 @@
           ],
           "source_info" : {
             "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
-            "line" : 271,
+            "line" : 309,
             "column" : 20,
             "source_fragment" : "standard_metadata.egress_spec = standard_metadata.ingress_port"
           }
@@ -1345,8 +1684,8 @@
       ]
     },
     {
-      "name" : "main276",
-      "id" : 12,
+      "name" : "main314",
+      "id" : 15,
       "runtime_data" : [],
       "primitives" : [
         {
@@ -1354,7 +1693,7 @@
           "parameters" : [
             {
               "type" : "field",
-              "value" : ["scalars", "tmp_4"]
+              "value" : ["scalars", "tmp_7"]
             },
             {
               "type" : "expression",
@@ -1376,7 +1715,7 @@
           ],
           "source_info" : {
             "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
-            "line" : 276,
+            "line" : 314,
             "column" : 34,
             "source_fragment" : "remote_reg_index"
           }
@@ -1390,7 +1729,7 @@
             },
             {
               "type" : "field",
-              "value" : ["scalars", "tmp_4"]
+              "value" : ["scalars", "tmp_7"]
             },
             {
               "type" : "field",
@@ -1399,7 +1738,7 @@
           ],
           "source_info" : {
             "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
-            "line" : 276,
+            "line" : 314,
             "column" : 16,
             "source_fragment" : "latency_reg.write(remote_reg_index, hdr.telemetry.latency_value)"
           }
@@ -1407,8 +1746,8 @@
       ]
     },
     {
-      "name" : "main206",
-      "id" : 13,
+      "name" : "main229",
+      "id" : 16,
       "runtime_data" : [],
       "primitives" : [
         {
@@ -1425,7 +1764,7 @@
           ],
           "source_info" : {
             "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
-            "line" : 206,
+            "line" : 229,
             "column" : 8,
             "source_fragment" : "meta.clone_enable = 0"
           }
@@ -1444,7 +1783,7 @@
           ],
           "source_info" : {
             "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
-            "line" : 207,
+            "line" : 230,
             "column" : 8,
             "source_fragment" : "meta.probe_index = 0"
           }
@@ -1463,7 +1802,7 @@
           ],
           "source_info" : {
             "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
-            "line" : 208,
+            "line" : 231,
             "column" : 8,
             "source_fragment" : "meta.report_index = 0"
           }
@@ -1501,7 +1840,7 @@
           ],
           "source_info" : {
             "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
-            "line" : 210,
+            "line" : 233,
             "column" : 8,
             "source_fragment" : "meta.now_ts = 0"
           }
@@ -1520,7 +1859,7 @@
           ],
           "source_info" : {
             "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
-            "line" : 211,
+            "line" : 234,
             "column" : 8,
             "source_fragment" : "meta.last_probe_ts = 0"
           }
@@ -1539,7 +1878,7 @@
           ],
           "source_info" : {
             "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
-            "line" : 212,
+            "line" : 235,
             "column" : 8,
             "source_fragment" : "meta.probe_interval = 0"
           }
@@ -1547,8 +1886,8 @@
       ]
     },
     {
-      "name" : "main293",
-      "id" : 14,
+      "name" : "main331",
+      "id" : 17,
       "runtime_data" : [],
       "primitives" : [
         {
@@ -1561,7 +1900,7 @@
           ],
           "source_info" : {
             "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
-            "line" : 293,
+            "line" : 331,
             "column" : 12,
             "source_fragment" : "hdr.ipv4.setInvalid()"
           }
@@ -1576,7 +1915,7 @@
           ],
           "source_info" : {
             "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
-            "line" : 296,
+            "line" : 334,
             "column" : 12,
             "source_fragment" : "hdr.telemetry.setValid()"
           }
@@ -1614,7 +1953,7 @@
           ],
           "source_info" : {
             "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
-            "line" : 298,
+            "line" : 336,
             "column" : 12,
             "source_fragment" : "hdr.telemetry.probe_index = meta.probe_index"
           }
@@ -1633,7 +1972,7 @@
           ],
           "source_info" : {
             "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
-            "line" : 299,
+            "line" : 337,
             "column" : 12,
             "source_fragment" : "hdr.telemetry.report_index = meta.report_index"
           }
@@ -1652,7 +1991,7 @@
           ],
           "source_info" : {
             "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
-            "line" : 300,
+            "line" : 338,
             "column" : 12,
             "source_fragment" : "hdr.telemetry.is_returning = 0"
           }
@@ -1671,7 +2010,7 @@
           ],
           "source_info" : {
             "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
-            "line" : 301,
+            "line" : 339,
             "column" : 12,
             "source_fragment" : "hdr.telemetry.t_send = standard_metadata.egress_global_timestamp"
           }
@@ -1690,7 +2029,7 @@
           ],
           "source_info" : {
             "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
-            "line" : 302,
+            "line" : 340,
             "column" : 12,
             "source_fragment" : "hdr.telemetry.t_proc = 0"
           }
@@ -1709,7 +2048,7 @@
           ],
           "source_info" : {
             "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
-            "line" : 303,
+            "line" : 341,
             "column" : 12,
             "source_fragment" : "hdr.telemetry.latency_value = 0"
           }
@@ -1736,8 +2075,8 @@
       ]
     },
     {
-      "name" : "main310",
-      "id" : 15,
+      "name" : "main348",
+      "id" : 18,
       "runtime_data" : [],
       "primitives" : [
         {
@@ -1777,7 +2116,7 @@
           ],
           "source_info" : {
             "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
-            "line" : 310,
+            "line" : 348,
             "column" : 12,
             "source_fragment" : "hdr.telemetry.t_proc = t_egress - meta.s2_ingress_time"
           }
@@ -1791,18 +2130,18 @@
       "id" : 0,
       "source_info" : {
         "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
-        "line" : 141,
+        "line" : 144,
         "column" : 8,
         "source_fragment" : "MyIngress"
       },
-      "init_table" : "tbl_main206",
+      "init_table" : "tbl_main229",
       "tables" : [
         {
-          "name" : "tbl_main206",
+          "name" : "tbl_main229",
           "id" : 0,
           "source_info" : {
             "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
-            "line" : 206,
+            "line" : 229,
             "column" : 26,
             "source_fragment" : "= 0; ..."
           },
@@ -1813,14 +2152,14 @@
           "with_counters" : false,
           "support_timeout" : false,
           "direct_meters" : null,
-          "action_ids" : [13],
-          "actions" : ["main206"],
+          "action_ids" : [16],
+          "actions" : ["main229"],
           "base_default_next" : "node_3",
           "next_tables" : {
-            "main206" : "node_3"
+            "main229" : "node_3"
           },
           "default_entry" : {
-            "action_id" : 13,
+            "action_id" : 16,
             "action_const" : true,
             "action_data" : [],
             "action_entry_const" : true
@@ -1831,7 +2170,7 @@
           "id" : 1,
           "source_info" : {
             "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
-            "line" : 179,
+            "line" : 189,
             "column" : 10,
             "source_fragment" : "ipv4_lpm"
           },
@@ -1849,7 +2188,7 @@
           "with_counters" : false,
           "support_timeout" : false,
           "direct_meters" : null,
-          "action_ids" : [3, 0],
+          "action_ids" : [4, 0],
           "actions" : ["MyIngress.ipv4_forward", "MyIngress.drop"],
           "base_default_next" : "MyIngress.probe_profile",
           "next_tables" : {
@@ -1868,7 +2207,7 @@
           "id" : 2,
           "source_info" : {
             "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
-            "line" : 192,
+            "line" : 202,
             "column" : 10,
             "source_fragment" : "probe_profile"
           },
@@ -1886,26 +2225,55 @@
           "with_counters" : false,
           "support_timeout" : false,
           "direct_meters" : null,
-          "action_ids" : [4, 5],
+          "action_ids" : [6, 7],
           "actions" : ["MyIngress.enable_probe", "MyIngress.no_probe"],
-          "base_default_next" : "node_6",
+          "base_default_next" : "tbl_main249",
           "next_tables" : {
-            "MyIngress.enable_probe" : "node_6",
-            "MyIngress.no_probe" : "node_6"
+            "MyIngress.enable_probe" : "tbl_main249",
+            "MyIngress.no_probe" : "tbl_main249"
           },
           "default_entry" : {
-            "action_id" : 5,
+            "action_id" : 7,
             "action_const" : false,
             "action_data" : [],
             "action_entry_const" : false
           }
         },
         {
-          "name" : "tbl_main222",
+          "name" : "tbl_main249",
           "id" : 3,
           "source_info" : {
             "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
-            "line" : 222,
+            "line" : 249,
+            "column" : 12,
+            "source_fragment" : "throughput_reg.read(prev_bytes, th_idx); ..."
+          },
+          "key" : [],
+          "match_type" : "exact",
+          "type" : "simple",
+          "max_size" : 1024,
+          "with_counters" : false,
+          "support_timeout" : false,
+          "direct_meters" : null,
+          "action_ids" : [10],
+          "actions" : ["main249"],
+          "base_default_next" : "node_7",
+          "next_tables" : {
+            "main249" : "node_7"
+          },
+          "default_entry" : {
+            "action_id" : 10,
+            "action_const" : true,
+            "action_data" : [],
+            "action_entry_const" : true
+          }
+        },
+        {
+          "name" : "tbl_main258",
+          "id" : 4,
+          "source_info" : {
+            "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
+            "line" : 258,
             "column" : 28,
             "source_fragment" : "= standard_metadata.ingress_global_timestamp; ..."
           },
@@ -1916,127 +2284,11 @@
           "with_counters" : false,
           "support_timeout" : false,
           "direct_meters" : null,
-          "action_ids" : [7],
-          "actions" : ["main222"],
-          "base_default_next" : "node_8",
-          "next_tables" : {
-            "main222" : "node_8"
-          },
-          "default_entry" : {
-            "action_id" : 7,
-            "action_const" : true,
-            "action_data" : [],
-            "action_entry_const" : true
-          }
-        },
-        {
-          "name" : "tbl_main229",
-          "id" : 4,
-          "source_info" : {
-            "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
-            "line" : 229,
-            "column" : 20,
-            "source_fragment" : "last_probe_ts_reg.write(interval_idx, meta.now_ts); ..."
-          },
-          "key" : [],
-          "match_type" : "exact",
-          "type" : "simple",
-          "max_size" : 1024,
-          "with_counters" : false,
-          "support_timeout" : false,
-          "direct_meters" : null,
-          "action_ids" : [6],
-          "actions" : ["main229"],
-          "base_default_next" : null,
-          "next_tables" : {
-            "main229" : null
-          },
-          "default_entry" : {
-            "action_id" : 6,
-            "action_const" : true,
-            "action_data" : [],
-            "action_entry_const" : true
-          }
-        },
-        {
-          "name" : "tbl_main242",
-          "id" : 5,
-          "source_info" : {
-            "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
-            "line" : 242,
-            "column" : 41,
-            "source_fragment" : "= standard_metadata.ingress_global_timestamp; ..."
-          },
-          "key" : [],
-          "match_type" : "exact",
-          "type" : "simple",
-          "max_size" : 1024,
-          "with_counters" : false,
-          "support_timeout" : false,
-          "direct_meters" : null,
-          "action_ids" : [8],
-          "actions" : ["main242"],
-          "base_default_next" : null,
-          "next_tables" : {
-            "main242" : null
-          },
-          "default_entry" : {
-            "action_id" : 8,
-            "action_const" : true,
-            "action_data" : [],
-            "action_entry_const" : true
-          }
-        },
-        {
-          "name" : "tbl_main255",
-          "id" : 6,
-          "source_info" : {
-            "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
-            "line" : 255,
-            "column" : 20,
-            "source_fragment" : "bit<48> prop_rtt = 0"
-          },
-          "key" : [],
-          "match_type" : "exact",
-          "type" : "simple",
-          "max_size" : 1024,
-          "with_counters" : false,
-          "support_timeout" : false,
-          "direct_meters" : null,
-          "action_ids" : [10],
-          "actions" : ["main255"],
-          "base_default_next" : "node_16",
-          "next_tables" : {
-            "main255" : "node_16"
-          },
-          "default_entry" : {
-            "action_id" : 10,
-            "action_const" : true,
-            "action_data" : [],
-            "action_entry_const" : true
-          }
-        },
-        {
-          "name" : "tbl_main257",
-          "id" : 7,
-          "source_info" : {
-            "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
-            "line" : 257,
-            "column" : 33,
-            "source_fragment" : "="
-          },
-          "key" : [],
-          "match_type" : "exact",
-          "type" : "simple",
-          "max_size" : 1024,
-          "with_counters" : false,
-          "support_timeout" : false,
-          "direct_meters" : null,
           "action_ids" : [9],
-          "actions" : ["main257"],
-          "base_default_next" : "tbl_main265",
+          "actions" : ["main258"],
+          "base_default_next" : "node_9",
           "next_tables" : {
-            "main257" : "tbl_main265"
+            "main258" : "node_9"
           },
           "default_entry" : {
             "action_id" : 9,
@@ -2047,10 +2299,163 @@
         },
         {
           "name" : "tbl_main265",
-          "id" : 8,
+          "id" : 5,
           "source_info" : {
             "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
             "line" : 265,
+            "column" : 20,
+            "source_fragment" : "last_probe_ts_reg.write(interval_idx, meta.now_ts); ..."
+          },
+          "key" : [],
+          "match_type" : "exact",
+          "type" : "simple",
+          "max_size" : 1024,
+          "with_counters" : false,
+          "support_timeout" : false,
+          "direct_meters" : null,
+          "action_ids" : [8],
+          "actions" : ["main265"],
+          "base_default_next" : null,
+          "next_tables" : {
+            "main265" : null
+          },
+          "default_entry" : {
+            "action_id" : 8,
+            "action_const" : true,
+            "action_data" : [],
+            "action_entry_const" : true
+          }
+        },
+        {
+          "name" : "MyIngress.pair_l2_forward",
+          "id" : 6,
+          "source_info" : {
+            "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
+            "line" : 215,
+            "column" : 10,
+            "source_fragment" : "pair_l2_forward"
+          },
+          "key" : [
+            {
+              "match_type" : "exact",
+              "name" : "hdr.ethernet.dstAddr",
+              "target" : ["ethernet", "dstAddr"],
+              "mask" : null
+            }
+          ],
+          "match_type" : "exact",
+          "type" : "simple",
+          "max_size" : 32,
+          "with_counters" : false,
+          "support_timeout" : false,
+          "direct_meters" : null,
+          "action_ids" : [5, 1],
+          "actions" : ["MyIngress.pair_forward", "MyIngress.drop"],
+          "base_default_next" : null,
+          "next_tables" : {
+            "MyIngress.pair_forward" : null,
+            "MyIngress.drop" : null
+          },
+          "default_entry" : {
+            "action_id" : 1,
+            "action_const" : false,
+            "action_data" : [],
+            "action_entry_const" : false
+          }
+        },
+        {
+          "name" : "tbl_main280",
+          "id" : 7,
+          "source_info" : {
+            "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
+            "line" : 280,
+            "column" : 41,
+            "source_fragment" : "= standard_metadata.ingress_global_timestamp; ..."
+          },
+          "key" : [],
+          "match_type" : "exact",
+          "type" : "simple",
+          "max_size" : 1024,
+          "with_counters" : false,
+          "support_timeout" : false,
+          "direct_meters" : null,
+          "action_ids" : [11],
+          "actions" : ["main280"],
+          "base_default_next" : null,
+          "next_tables" : {
+            "main280" : null
+          },
+          "default_entry" : {
+            "action_id" : 11,
+            "action_const" : true,
+            "action_data" : [],
+            "action_entry_const" : true
+          }
+        },
+        {
+          "name" : "tbl_main293",
+          "id" : 8,
+          "source_info" : {
+            "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
+            "line" : 293,
+            "column" : 20,
+            "source_fragment" : "bit<48> prop_rtt = 0"
+          },
+          "key" : [],
+          "match_type" : "exact",
+          "type" : "simple",
+          "max_size" : 1024,
+          "with_counters" : false,
+          "support_timeout" : false,
+          "direct_meters" : null,
+          "action_ids" : [13],
+          "actions" : ["main293"],
+          "base_default_next" : "node_19",
+          "next_tables" : {
+            "main293" : "node_19"
+          },
+          "default_entry" : {
+            "action_id" : 13,
+            "action_const" : true,
+            "action_data" : [],
+            "action_entry_const" : true
+          }
+        },
+        {
+          "name" : "tbl_main295",
+          "id" : 9,
+          "source_info" : {
+            "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
+            "line" : 295,
+            "column" : 33,
+            "source_fragment" : "="
+          },
+          "key" : [],
+          "match_type" : "exact",
+          "type" : "simple",
+          "max_size" : 1024,
+          "with_counters" : false,
+          "support_timeout" : false,
+          "direct_meters" : null,
+          "action_ids" : [12],
+          "actions" : ["main295"],
+          "base_default_next" : "tbl_main303",
+          "next_tables" : {
+            "main295" : "tbl_main303"
+          },
+          "default_entry" : {
+            "action_id" : 12,
+            "action_const" : true,
+            "action_data" : [],
+            "action_entry_const" : true
+          }
+        },
+        {
+          "name" : "tbl_main303",
+          "id" : 10,
+          "source_info" : {
+            "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
+            "line" : 303,
             "column" : 20,
             "source_fragment" : "latency_reg.write(reg_index, final_latency); ..."
           },
@@ -2061,25 +2466,25 @@
           "with_counters" : false,
           "support_timeout" : false,
           "direct_meters" : null,
-          "action_ids" : [11],
-          "actions" : ["main265"],
+          "action_ids" : [14],
+          "actions" : ["main303"],
           "base_default_next" : null,
           "next_tables" : {
-            "main265" : null
+            "main303" : null
           },
           "default_entry" : {
-            "action_id" : 11,
+            "action_id" : 14,
             "action_const" : true,
             "action_data" : [],
             "action_entry_const" : true
           }
         },
         {
-          "name" : "tbl_main276",
-          "id" : 9,
+          "name" : "tbl_main314",
+          "id" : 11,
           "source_info" : {
             "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
-            "line" : 276,
+            "line" : 314,
             "column" : 16,
             "source_fragment" : "latency_reg.write(remote_reg_index, hdr.telemetry.latency_value)"
           },
@@ -2090,14 +2495,14 @@
           "with_counters" : false,
           "support_timeout" : false,
           "direct_meters" : null,
-          "action_ids" : [12],
-          "actions" : ["main276"],
+          "action_ids" : [15],
+          "actions" : ["main314"],
           "base_default_next" : "tbl_drop",
           "next_tables" : {
-            "main276" : "tbl_drop"
+            "main314" : "tbl_drop"
           },
           "default_entry" : {
-            "action_id" : 12,
+            "action_id" : 15,
             "action_const" : true,
             "action_data" : [],
             "action_entry_const" : true
@@ -2105,39 +2510,10 @@
         },
         {
           "name" : "tbl_drop",
-          "id" : 10,
+          "id" : 12,
           "source_info" : {
             "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
-            "line" : 277,
-            "column" : 16,
-            "source_fragment" : "drop()"
-          },
-          "key" : [],
-          "match_type" : "exact",
-          "type" : "simple",
-          "max_size" : 1024,
-          "with_counters" : false,
-          "support_timeout" : false,
-          "direct_meters" : null,
-          "action_ids" : [1],
-          "actions" : ["MyIngress.drop"],
-          "base_default_next" : null,
-          "next_tables" : {
-            "MyIngress.drop" : null
-          },
-          "default_entry" : {
-            "action_id" : 1,
-            "action_const" : true,
-            "action_data" : [],
-            "action_entry_const" : true
-          }
-        },
-        {
-          "name" : "tbl_drop_0",
-          "id" : 11,
-          "source_info" : {
-            "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
-            "line" : 279,
+            "line" : 315,
             "column" : 16,
             "source_fragment" : "drop()"
           },
@@ -2160,6 +2536,35 @@
             "action_data" : [],
             "action_entry_const" : true
           }
+        },
+        {
+          "name" : "tbl_drop_0",
+          "id" : 13,
+          "source_info" : {
+            "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
+            "line" : 317,
+            "column" : 16,
+            "source_fragment" : "drop()"
+          },
+          "key" : [],
+          "match_type" : "exact",
+          "type" : "simple",
+          "max_size" : 1024,
+          "with_counters" : false,
+          "support_timeout" : false,
+          "direct_meters" : null,
+          "action_ids" : [3],
+          "actions" : ["MyIngress.drop"],
+          "base_default_next" : null,
+          "next_tables" : {
+            "MyIngress.drop" : null
+          },
+          "default_entry" : {
+            "action_id" : 3,
+            "action_const" : true,
+            "action_data" : [],
+            "action_entry_const" : true
+          }
         }
       ],
       "action_profiles" : [],
@@ -2169,7 +2574,7 @@
           "id" : 0,
           "source_info" : {
             "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
-            "line" : 215,
+            "line" : 238,
             "column" : 12,
             "source_fragment" : "hdr.ipv4.isValid() && !hdr.telemetry.isValid()"
           },
@@ -2209,14 +2614,14 @@
             }
           },
           "true_next" : "MyIngress.ipv4_lpm",
-          "false_next" : "node_10"
+          "false_next" : "node_11"
         },
         {
-          "name" : "node_6",
+          "name" : "node_7",
           "id" : 1,
           "source_info" : {
             "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
-            "line" : 220,
+            "line" : 256,
             "column" : 16,
             "source_fragment" : "meta.clone_enable == 1"
           },
@@ -2235,14 +2640,14 @@
             }
           },
           "false_next" : null,
-          "true_next" : "tbl_main222"
+          "true_next" : "tbl_main258"
         },
         {
-          "name" : "node_8",
+          "name" : "node_9",
           "id" : 2,
           "source_info" : {
             "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
-            "line" : 227,
+            "line" : 263,
             "column" : 20,
             "source_fragment" : "(meta.probe_interval == 0) || ..."
           },
@@ -2301,14 +2706,14 @@
             }
           },
           "false_next" : null,
-          "true_next" : "tbl_main229"
+          "true_next" : "tbl_main265"
         },
         {
-          "name" : "node_10",
+          "name" : "node_11",
           "id" : 3,
           "source_info" : {
             "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
-            "line" : 237,
+            "line" : 273,
             "column" : 19,
             "source_fragment" : "hdr.telemetry.isValid()"
           },
@@ -2324,15 +2729,41 @@
             }
           },
           "false_next" : null,
-          "true_next" : "node_11"
+          "true_next" : "node_12"
         },
         {
-          "name" : "node_11",
+          "name" : "node_12",
           "id" : 4,
           "source_info" : {
             "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
-            "line" : 238,
+            "line" : 274,
             "column" : 16,
+            "source_fragment" : "hdr.telemetry.msg_type == TELEMETRY_MSG_PAIR"
+          },
+          "expression" : {
+            "type" : "expression",
+            "value" : {
+              "op" : "==",
+              "left" : {
+                "type" : "field",
+                "value" : ["telemetry", "msg_type"]
+              },
+              "right" : {
+                "type" : "hexstr",
+                "value" : "0x02"
+              }
+            }
+          },
+          "true_next" : "MyIngress.pair_l2_forward",
+          "false_next" : "node_14"
+        },
+        {
+          "name" : "node_14",
+          "id" : 5,
+          "source_info" : {
+            "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
+            "line" : 276,
+            "column" : 23,
             "source_fragment" : "hdr.telemetry.msg_type == TELEMETRY_MSG_PROBE"
           },
           "expression" : {
@@ -2349,15 +2780,15 @@
               }
             }
           },
-          "true_next" : "node_12",
-          "false_next" : "node_19"
+          "true_next" : "node_15",
+          "false_next" : "node_22"
         },
         {
-          "name" : "node_12",
-          "id" : 5,
+          "name" : "node_15",
+          "id" : 6,
           "source_info" : {
             "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
-            "line" : 240,
+            "line" : 278,
             "column" : 20,
             "source_fragment" : "hdr.telemetry.is_returning == 0"
           },
@@ -2375,15 +2806,15 @@
               }
             }
           },
-          "true_next" : "tbl_main242",
-          "false_next" : "node_14"
+          "true_next" : "tbl_main280",
+          "false_next" : "node_17"
         },
         {
-          "name" : "node_14",
-          "id" : 6,
+          "name" : "node_17",
+          "id" : 7,
           "source_info" : {
             "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
-            "line" : 247,
+            "line" : 285,
             "column" : 27,
             "source_fragment" : "hdr.telemetry.is_returning == 1"
           },
@@ -2402,14 +2833,14 @@
             }
           },
           "false_next" : null,
-          "true_next" : "tbl_main255"
+          "true_next" : "tbl_main293"
         },
         {
-          "name" : "node_16",
-          "id" : 7,
+          "name" : "node_19",
+          "id" : 8,
           "source_info" : {
             "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
-            "line" : 256,
+            "line" : 294,
             "column" : 24,
             "source_fragment" : "total_rtt > t_proc"
           },
@@ -2447,15 +2878,15 @@
               }
             }
           },
-          "true_next" : "tbl_main257",
-          "false_next" : "tbl_main265"
+          "true_next" : "tbl_main295",
+          "false_next" : "tbl_main303"
         },
         {
-          "name" : "node_19",
-          "id" : 8,
+          "name" : "node_22",
+          "id" : 9,
           "source_info" : {
             "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
-            "line" : 273,
+            "line" : 311,
             "column" : 23,
             "source_fragment" : "hdr.telemetry.msg_type == TELEMETRY_MSG_REPORT"
           },
@@ -2473,7 +2904,7 @@
               }
             }
           },
-          "true_next" : "tbl_main276",
+          "true_next" : "tbl_main314",
           "false_next" : "tbl_drop_0"
         }
       ]
@@ -2483,18 +2914,18 @@
       "id" : 1,
       "source_info" : {
         "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
-        "line" : 286,
+        "line" : 324,
         "column" : 8,
         "source_fragment" : "MyEgress"
       },
-      "init_table" : "node_25",
+      "init_table" : "node_28",
       "tables" : [
         {
-          "name" : "tbl_main293",
-          "id" : 12,
+          "name" : "tbl_main331",
+          "id" : 14,
           "source_info" : {
             "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
-            "line" : 293,
+            "line" : 331,
             "column" : 12,
             "source_fragment" : "hdr.ipv4.setInvalid(); ..."
           },
@@ -2505,25 +2936,25 @@
           "with_counters" : false,
           "support_timeout" : false,
           "direct_meters" : null,
-          "action_ids" : [14],
-          "actions" : ["main293"],
+          "action_ids" : [17],
+          "actions" : ["main331"],
           "base_default_next" : null,
           "next_tables" : {
-            "main293" : null
+            "main331" : null
           },
           "default_entry" : {
-            "action_id" : 14,
+            "action_id" : 17,
             "action_const" : true,
             "action_data" : [],
             "action_entry_const" : true
           }
         },
         {
-          "name" : "tbl_main310",
-          "id" : 13,
+          "name" : "tbl_main348",
+          "id" : 15,
           "source_info" : {
             "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
-            "line" : 310,
+            "line" : 348,
             "column" : 33,
             "source_fragment" : "="
           },
@@ -2534,14 +2965,14 @@
           "with_counters" : false,
           "support_timeout" : false,
           "direct_meters" : null,
-          "action_ids" : [15],
-          "actions" : ["main310"],
+          "action_ids" : [18],
+          "actions" : ["main348"],
           "base_default_next" : null,
           "next_tables" : {
-            "main310" : null
+            "main348" : null
           },
           "default_entry" : {
-            "action_id" : 15,
+            "action_id" : 18,
             "action_const" : true,
             "action_data" : [],
             "action_entry_const" : true
@@ -2551,11 +2982,11 @@
       "action_profiles" : [],
       "conditionals" : [
         {
-          "name" : "node_25",
-          "id" : 9,
+          "name" : "node_28",
+          "id" : 10,
           "source_info" : {
             "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
-            "line" : 291,
+            "line" : 329,
             "column" : 12,
             "source_fragment" : "standard_metadata.instance_type == INSTANCE_TYPE_INGRESS_CLONE"
           },
@@ -2573,15 +3004,15 @@
               }
             }
           },
-          "true_next" : "tbl_main293",
-          "false_next" : "node_27"
+          "true_next" : "tbl_main331",
+          "false_next" : "node_30"
         },
         {
-          "name" : "node_27",
-          "id" : 10,
+          "name" : "node_30",
+          "id" : 11,
           "source_info" : {
             "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
-            "line" : 305,
+            "line" : 343,
             "column" : 19,
             "source_fragment" : "hdr.telemetry.isValid() && ..."
           },
@@ -2637,7 +3068,7 @@
             }
           },
           "false_next" : null,
-          "true_next" : "tbl_main310"
+          "true_next" : "tbl_main348"
         }
       ]
     }
@@ -2648,7 +3079,7 @@
       "id" : 0,
       "source_info" : {
         "filename" : "/home/p4/Documents/In-Band-Telemetry-Protocol-Network/p4/main.p4",
-        "line" : 318,
+        "line" : 356,
         "column" : 8,
         "source_fragment" : "update_checksum( ..."
       },

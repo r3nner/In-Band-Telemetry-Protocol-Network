@@ -47,6 +47,7 @@ where `L` comes from `packet_length_reg[index]` and `R` comes from the `TCLink` 
 - `control_plane/read_throughput.py`: polls throughput counters over thrift and prints bps from byte deltas.
 - `control_plane/read_transmission_delay.py`: polls packet-length registers over thrift and derives transmission delay from link bandwidth.
 - `control_plane/run_throughput_test.py`: runs an end-to-end iperf throughput demo.
+- `control_plane/test_link_capacity.py`: automated packet-pair capacity test (one-command).
 - `control_plane/send_probes.py`: Scapy sender for back-to-back packet-pair probes.
 - `control_plane/sniff_probes.py`: Scapy receiver that timestamps two probe arrivals and computes capacity.
 - `build/main.json`: generated BMv2 JSON artifact.
@@ -163,6 +164,26 @@ The helper programs the switch, starts the traffic burst, and reads the per-inde
 It also derives transmission delay from the configured link bandwidth and the last packet length seen by each monitored index.
 
 ## Run: Packet-Pair Capacity Test
+
+### Quick Test (Automated)
+
+Run a complete capacity test in one command:
+
+```bash
+sudo python3 control_plane/test_link_capacity.py \
+  --json build/main.json \
+  --bottleneck-bw-mbps 10 \
+  --frame-size 1500
+```
+
+This script:
+1. Starts the packet-pair topology
+2. Programs the switches
+3. Starts the sniffer on `probe_s2-eth0`
+4. Sends back-to-back probes from `probe_s1-eth0`
+5. Reports estimated link capacity in bps
+
+### Manual Test (Step-by-step)
 
 1. Start the dedicated topology:
 

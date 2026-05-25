@@ -12,8 +12,6 @@ import sys
 import time
 from typing import Dict, List
 
-REGISTER_REGEX = re.compile(r"packet_length_reg\[(\d+)\]\s*=\s*(0x[0-9a-fA-F]+|[0-9]+)")
-
 
 def run_cli(thrift_port: int, commands: List[str]) -> str:
     payload = "\n".join(commands) + "\n"
@@ -31,9 +29,10 @@ def run_cli(thrift_port: int, commands: List[str]) -> str:
     return proc.stdout
 
 
-def parse_values(cli_output: str) -> Dict[int, int]:
+def parse_values(cli_output: str, register: str) -> Dict[int, int]:
+    pattern = re.compile(rf"{re.escape(register)}\[(\d+)\]\s*=\s*(0x[0-9a-fA-F]+|[0-9]+)")
     values: Dict[int, int] = {}
-    for match in REGISTER_REGEX.finditer(cli_output):
+    for match in pattern.finditer(cli_output):
         idx = int(match.group(1))
         raw_value = int(match.group(2), 0)
         values[idx] = raw_value
@@ -43,7 +42,7 @@ def parse_values(cli_output: str) -> Dict[int, int]:
 def read_packet_lengths_once(thrift_port: int, register_name: str, indices: List[int]) -> Dict[int, int]:
     commands = [f"register_read {register_name} {idx}" for idx in indices]
     output = run_cli(thrift_port, commands)
-    parsed = parse_values(output)
+    parsed = parse_values(output, register_name)
     missing = [idx for idx in indices if idx not in parsed]
     if missing:
         raise RuntimeError(

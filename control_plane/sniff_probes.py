@@ -3,6 +3,7 @@ import argparse
 import logging
 import time
 from dataclasses import dataclass
+from typing import List
 
 from scapy.all import BitField, ByteField, Ether, Packet, bind_layers, sniff
 
@@ -29,8 +30,8 @@ bind_layers(Ether, TelemetryPair, type=ETHERTYPE_PACKET_PAIR)
 
 @dataclass
 class CaptureState:
-    arrivals: list[float]
-    packets: list[Ether]
+    arrivals: List[float]
+    packets: List[Ether]
 
 
 def parse_args() -> argparse.Namespace:
