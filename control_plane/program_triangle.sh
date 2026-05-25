@@ -64,6 +64,9 @@ register_write probe_interval_reg 2 __PROBE_INTERVAL_US__
 register_write probe_interval_reg 3 __PROBE_INTERVAL_US__
 register_write last_probe_ts_reg 2 0
 register_write last_probe_ts_reg 3 0
+register_write throughput_reg 2 0
+register_write throughput_reg 3 0
+register_write throughput_reg 1 0
 '
 
 S2_COMMANDS='reset_state
@@ -82,6 +85,8 @@ register_write probe_interval_reg 1 __PROBE_INTERVAL_US__
 register_write probe_interval_reg 3 __PROBE_INTERVAL_US__
 register_write last_probe_ts_reg 1 0
 register_write last_probe_ts_reg 3 0
+register_write throughput_reg 1 0
+register_write throughput_reg 3 0
 '
 
 S3_COMMANDS='reset_state
@@ -103,6 +108,9 @@ register_write probe_interval_reg 1 __PROBE_INTERVAL_US__
 register_write probe_interval_reg 2 __PROBE_INTERVAL_US__
 register_write last_probe_ts_reg 1 0
 register_write last_probe_ts_reg 2 0
+register_write throughput_reg 1 0
+register_write throughput_reg 2 0
+register_write throughput_reg 3 0
 '
 
 S1_COMMANDS="${S1_COMMANDS//__PROBE_INTERVAL_US__/${PROBE_INTERVAL_US}}"

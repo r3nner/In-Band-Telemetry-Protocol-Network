@@ -308,6 +308,18 @@
       },
       "size" : 1024,
       "bitwidth" : 48
+    },
+    {
+      "name" : "throughput_reg",
+      "id" : 3,
+      "source_info" : {
+        "filename" : "/home/p4/Documents/Latency-Telemetry/p4/main.p4",
+        "line" : 141,
+        "column" : 24,
+        "source_fragment" : "throughput_reg"
+      },
+      "size" : 1024,
+      "bitwidth" : 64
     }
   ],
   "calculations" : [
