@@ -67,6 +67,24 @@ register_write last_probe_ts_reg 3 0
 register_write throughput_reg 2 0
 register_write throughput_reg 3 0
 register_write throughput_reg 1 0
+
+# --- configuração de exportação de telemetria via UDP ---
+# ID único do switch S1
+register_write switch_id_reg 0 1
+# IP de origem do switch S1 (10.0.0.101 = 167772261)
+register_write switch_ip_reg 0 167772261
+# IP do controlador (10.0.0.254 = 167772414)
+register_write controller_ip_reg 0 167772414
+# Sessão de clone para reports UDP — porta 1 (host side)
+mirroring_add 252 1
+# Intervalo de report de throughput para porta monitorada 2 (1 segundo)
+register_write report_interval_reg 2 1000000
+# Último timestamp de report para porta monitorada 2
+register_write last_report_ts_reg 2 0
+# Intervalo de report de throughput para porta monitorada 3 (1 segundo)
+register_write report_interval_reg 3 1000000
+# Último timestamp de report para porta monitorada 3
+register_write last_report_ts_reg 3 0
 '
 
 S2_COMMANDS='reset_state
@@ -87,6 +105,24 @@ register_write last_probe_ts_reg 1 0
 register_write last_probe_ts_reg 3 0
 register_write throughput_reg 1 0
 register_write throughput_reg 3 0
+
+# --- configuração de exportação de telemetria via UDP ---
+# ID único do switch S2
+register_write switch_id_reg 0 2
+# IP de origem do switch S2 (10.0.0.102 = 167772262)
+register_write switch_ip_reg 0 167772262
+# IP do controlador (10.0.0.254 = 167772414)
+register_write controller_ip_reg 0 167772414
+# Sessão de clone para reports UDP — porta 1 (em direção a S1, que leva ao host)
+mirroring_add 252 1
+# Intervalo de report de throughput para porta monitorada 1 (1 segundo)
+register_write report_interval_reg 1 1000000
+# Último timestamp de report para porta monitorada 1
+register_write last_report_ts_reg 1 0
+# Intervalo de report de throughput para porta monitorada 2 (1 segundo)
+register_write report_interval_reg 2 1000000
+# Último timestamp de report para porta monitorada 2
+register_write last_report_ts_reg 2 0
 '
 
 S3_COMMANDS='reset_state
@@ -111,6 +147,24 @@ register_write last_probe_ts_reg 2 0
 register_write throughput_reg 1 0
 register_write throughput_reg 2 0
 register_write throughput_reg 3 0
+
+# --- configuração de exportação de telemetria via UDP ---
+# ID único do switch S3
+register_write switch_id_reg 0 3
+# IP de origem do switch S3 (10.0.0.103 = 167772263)
+register_write switch_ip_reg 0 167772263
+# IP do controlador (10.0.0.254 = 167772414)
+register_write controller_ip_reg 0 167772414
+# Sessão de clone para reports UDP — porta 3 (host side)
+mirroring_add 252 3
+# Intervalo de report de throughput para porta monitorada 1 (1 segundo)
+register_write report_interval_reg 1 1000000
+# Último timestamp de report para porta monitorada 1
+register_write last_report_ts_reg 1 0
+# Intervalo de report de throughput para porta monitorada 2 (1 segundo)
+register_write report_interval_reg 2 1000000
+# Último timestamp de report para porta monitorada 2
+register_write last_report_ts_reg 2 0
 '
 
 S1_COMMANDS="${S1_COMMANDS//__PROBE_INTERVAL_US__/${PROBE_INTERVAL_US}}"

@@ -15,6 +15,9 @@ const bit<8> TELEMETRY_MSG_PROBE = 8w0;
 const bit<8> TELEMETRY_MSG_REPORT = 8w1;
 const bit<8> TELEMETRY_MSG_PAIR = 8w2;
 
+// sessão de clone dedicada à exportação de relatórios UDP para o controlador
+const bit<32> CLONE_SESSION_REPORT = 32w252;
+
 // cabeçalho ethernet padrão de camada 2
 header ethernet_t {
     macAddr_t dstAddr;
@@ -36,6 +39,24 @@ header ipv4_t {
     bit<16> hdrChecksum;
     ip4Addr_t srcAddr;
     ip4Addr_t dstAddr;
+}
+
+// cabeçalho UDP para encapsular relatórios de telemetria
+header udp_t {
+    bit<16> srcPort;
+    bit<16> dstPort;
+    bit<16> length;
+    bit<16> checksum;
+}
+
+// cabeçalho de relatório de telemetria exportado via UDP ao controlador
+// tamanho total: 8 + 16 + 8 + 48 + 48 = 128 bits = 16 bytes
+header telemetry_report_t {
+    bit<8>  switch_id;      // identificador do switch que gerou o report
+    bit<16> port_id;        // porta do enlace medido (9 bits usados, padded a 16)
+    bit<8>  metric_type;    // tipo de métrica: 0=latência, 1=throughput, 2=dispersão
+    bit<48> metric_value;   // valor calculado da métrica
+    bit<48> timestamp;      // instante da medição
 }
 
 // cabeçalho customizado de telemetria ativa
@@ -78,16 +99,35 @@ struct metadata {
 
     // intervalo mínimo entre sondas para o índice monitorado
     timestamp_t probe_interval;
+
+    // --- campos para preservar dados no clone de report UDP ---
+    // valor da métrica a ser exportada (latência, throughput ou dispersão)
+    @field_list(2)
+    bit<48> report_metric_value;
+
+    // tipo da métrica: 0=latência, 1=throughput, 2=dispersão
+    @field_list(2)
+    bit<8> report_metric_type;
+
+    // porta/índice do enlace medido
+    @field_list(2)
+    bit<16> report_port_id;
+
+    // sessão de clone usada para diferenciar report de sonda
+    @field_list(2)
+    bit<32> report_clone_session;
 }
 
 // agrupa todos os cabeçalhos manipulados no pipeline
 struct headers {
     ethernet_t ethernet;
     ipv4_t ipv4;
+    udp_t udp;
+    telemetry_report_t telemetry_report;
     telemetry_t telemetry;
 }
 
-// parser principal: identifica o tipo do quadro e extrai ipv4 ou telemetria
+// parser principal: identifica o tipo do quadro e extrai ipv4, udp, report ou telemetria
 parser MyParser(packet_in packet,
                 out headers hdr,
                 inout metadata meta,
@@ -110,6 +150,23 @@ parser MyParser(packet_in packet,
     state parse_ipv4 {
         // extrai o cabeçalho ipv4 para fluxo de dados normal
         packet.extract(hdr.ipv4);
+        // verifica se o protocolo é UDP para extrair cabeçalhos adicionais
+        transition select(hdr.ipv4.protocol) {
+            17: parse_udp;
+            default: accept;
+        }
+    }
+
+    // estado para extrair o cabeçalho UDP
+    state parse_udp {
+        packet.extract(hdr.udp);
+        // tenta extrair o cabeçalho de relatório de telemetria após o UDP
+        transition parse_telemetry_report;
+    }
+
+    // estado para extrair o cabeçalho de relatório de telemetria encapsulado em UDP
+    state parse_telemetry_report {
+        packet.extract(hdr.telemetry_report);
         transition accept;
     }
 
@@ -139,6 +196,23 @@ register<bit<64>>(1024) throughput_reg;
 
 // registrador stateful que guarda o tamanho do último pacote observado por índice
 register<bit<32>>(1024) packet_length_reg;
+
+// --- novos registradores para exportação de relatórios UDP ---
+
+// identificador único do switch, configurável via Thrift no control plane
+register<bit<8>>(1) switch_id_reg;
+
+// endereço IP de destino do controlador, configurável via Thrift
+register<bit<32>>(1) controller_ip_reg;
+
+// endereço IP de origem do switch (srcAddr do IPv4 do report), configurável via Thrift
+register<bit<32>>(1) switch_ip_reg;
+
+// intervalo mínimo entre reports de throughput por porta (em microssegundos)
+register<bit<48>>(1024) report_interval_reg;
+
+// último timestamp de envio de report de throughput por porta
+register<bit<48>>(1024) last_report_ts_reg;
 
 // ingress: encaminha ipv4, cria sondas por clone, reflete telemetria e calcula latência final
 control MyIngress(inout headers hdr,
@@ -234,6 +308,12 @@ control MyIngress(inout headers hdr,
         meta.last_probe_ts = 0;
         meta.probe_interval = 0;
 
+        // inicializa metadados de report UDP
+        meta.report_metric_value = 0;
+        meta.report_metric_type = 0;
+        meta.report_port_id = 0;
+        meta.report_clone_session = 0;
+
         // fluxo de dados: pacote ipv4 normal sem cabeçalho de telemetria
         if (hdr.ipv4.isValid() && !hdr.telemetry.isValid()) {
             ipv4_lpm.apply();
@@ -252,6 +332,32 @@ control MyIngress(inout headers hdr,
 
             // preserva o tamanho do pacote para cálculo de atraso de transmissão
             packet_length_reg.write(th_idx, standard_metadata.packet_length);
+
+            // --- exportação periódica de throughput via report UDP ---
+            {
+                bit<48> rpt_interval = 0;
+                bit<48> rpt_last_ts = 0;
+                bit<48> rpt_now = standard_metadata.ingress_global_timestamp;
+                report_interval_reg.read(rpt_interval, th_idx);
+                last_report_ts_reg.read(rpt_last_ts, th_idx);
+
+                // envia report de throughput quando o intervalo configurado expirar
+                if ((rpt_interval != 0) &&
+                    (rpt_now >= (rpt_last_ts + rpt_interval))) {
+                    last_report_ts_reg.write(th_idx, rpt_now);
+
+                    // preenche metadados de report para o clone
+                    meta.report_metric_type = 1;    // 1 = throughput
+                    meta.report_metric_value = (bit<48>)prev_bytes;
+                    meta.report_port_id = (bit<16>)th_idx;
+                    meta.report_clone_session = CLONE_SESSION_REPORT;
+
+                    // cria clone ingress->egress preservando campos marcados com field_list 2
+                    clone_preserving_field_list(CloneType.I2E,
+                                                CLONE_SESSION_REPORT,
+                                                2);
+                }
+            }
 
             if (meta.clone_enable == 1) {
                 bit<32> interval_idx = (bit<32>)meta.probe_index;
@@ -302,6 +408,18 @@ control MyIngress(inout headers hdr,
                     bit<32> reg_index = (bit<32>)hdr.telemetry.probe_index;
                     latency_reg.write(reg_index, final_latency);
 
+                    // --- exportação de latência via report UDP ---
+                    // preenche metadados de report antes do clone
+                    meta.report_metric_value = final_latency;
+                    meta.report_port_id = (bit<16>)hdr.telemetry.probe_index;
+                    meta.report_metric_type = 0;    // 0 = latência
+                    meta.report_clone_session = CLONE_SESSION_REPORT;
+
+                    // cria clone ingress->egress para montar pacote report UDP
+                    clone_preserving_field_list(CloneType.I2E,
+                                                CLONE_SESSION_REPORT,
+                                                2);
+
                     // converte a sonda em relatório para sincronizar a latência no vizinho
                     hdr.telemetry.msg_type = TELEMETRY_MSG_REPORT;
                     hdr.telemetry.is_returning = 0;
@@ -327,19 +445,85 @@ control MyEgress(inout headers hdr,
     apply {
         // identifica pacote clonado no egress para conversão em sonda enxuta
         if (standard_metadata.instance_type == INSTANCE_TYPE_INGRESS_CLONE) {
-            // remove ipv4/payload do clone para reduzir overhead de banda
-            hdr.ipv4.setInvalid();
 
-            // preenche o cabeçalho de telemetria com dados de saída do emissor
-            hdr.telemetry.setValid();
-            hdr.telemetry.msg_type = TELEMETRY_MSG_PROBE;
-            hdr.telemetry.probe_index = meta.probe_index;
-            hdr.telemetry.report_index = meta.report_index;
-            hdr.telemetry.is_returning = 0;
-            hdr.telemetry.t_send = standard_metadata.egress_global_timestamp;
-            hdr.telemetry.t_proc = 0;
-            hdr.telemetry.latency_value = 0;
-            hdr.ethernet.etherType = ETHERTYPE_TELEMETRY;
+            // verifica se é clone de report UDP ou clone de sonda
+            if (meta.report_clone_session == CLONE_SESSION_REPORT) {
+                // --- montagem do pacote de report UDP para o controlador ---
+
+                // lê configurações do switch a partir dos registradores
+                bit<8> sw_id = 0;
+                bit<32> ctrl_ip = 0;
+                bit<32> sw_ip = 0;
+                switch_id_reg.read(sw_id, 0);
+                controller_ip_reg.read(ctrl_ip, 0);
+                switch_ip_reg.read(sw_ip, 0);
+
+                // invalida cabeçalhos originais que não fazem parte do report
+                if (hdr.telemetry.isValid()) {
+                    hdr.telemetry.setInvalid();
+                }
+                if (hdr.ipv4.isValid()) {
+                    hdr.ipv4.setInvalid();
+                }
+                if (hdr.udp.isValid()) {
+                    hdr.udp.setInvalid();
+                }
+                if (hdr.telemetry_report.isValid()) {
+                    hdr.telemetry_report.setInvalid();
+                }
+
+                // monta o cabeçalho Ethernet do report
+                hdr.ethernet.etherType = ETHERTYPE_IPV4;
+
+                // monta o cabeçalho IPv4 do report
+                // totalLen = 20 (ipv4) + 8 (udp) + 16 (telemetry_report_t) = 44
+                hdr.ipv4.setValid();
+                hdr.ipv4.version = 4;
+                hdr.ipv4.ihl = 5;
+                hdr.ipv4.diffserv = 0;
+                hdr.ipv4.totalLen = 44;
+                hdr.ipv4.identification = 0;
+                hdr.ipv4.flags = 0;
+                hdr.ipv4.fragOffset = 0;
+                hdr.ipv4.ttl = 64;
+                hdr.ipv4.protocol = 17;  // UDP
+                hdr.ipv4.hdrChecksum = 0;
+                hdr.ipv4.srcAddr = sw_ip;
+                hdr.ipv4.dstAddr = ctrl_ip;
+
+                // monta o cabeçalho UDP do report
+                // length = 8 (udp) + 16 (telemetry_report_t) = 24
+                hdr.udp.setValid();
+                hdr.udp.srcPort = 9999;
+                hdr.udp.dstPort = 9999;
+                hdr.udp.length = 24;
+                hdr.udp.checksum = 0;
+
+                // monta o cabeçalho de relatório de telemetria
+                hdr.telemetry_report.setValid();
+                hdr.telemetry_report.switch_id = sw_id;
+                hdr.telemetry_report.port_id = meta.report_port_id;
+                hdr.telemetry_report.metric_type = meta.report_metric_type;
+                hdr.telemetry_report.metric_value = meta.report_metric_value;
+                hdr.telemetry_report.timestamp = standard_metadata.egress_global_timestamp;
+
+            } else {
+                // --- clone de sonda existente (fluxo original inalterado) ---
+                // remove ipv4/payload do clone para reduzir overhead de banda
+                hdr.ipv4.setInvalid();
+
+                // preenche o cabeçalho de telemetria com dados de saída do emissor
+                hdr.telemetry.setValid();
+                hdr.telemetry.msg_type = TELEMETRY_MSG_PROBE;
+                hdr.telemetry.probe_index = meta.probe_index;
+                hdr.telemetry.report_index = meta.report_index;
+                hdr.telemetry.is_returning = 0;
+                hdr.telemetry.t_send = standard_metadata.egress_global_timestamp;
+                hdr.telemetry.t_proc = 0;
+                hdr.telemetry.latency_value = 0;
+                hdr.ethernet.etherType = ETHERTYPE_TELEMETRY;
+            }
+
         } else if (hdr.telemetry.isValid() &&
                    hdr.telemetry.msg_type == TELEMETRY_MSG_PROBE &&
                    hdr.telemetry.is_returning == 1) {
@@ -375,11 +559,14 @@ control MyComputeChecksum(inout headers hdr, inout metadata meta) {
 }
 
 // deparser: emite cabeçalhos válidos na ordem do wire format.
+// ordem: ethernet → ipv4 → udp → telemetry_report → telemetry
 control MyDeparser(packet_out packet, in headers hdr) {
     apply {
         packet.emit(hdr.ethernet);
-        packet.emit(hdr.telemetry);
         packet.emit(hdr.ipv4);
+        packet.emit(hdr.udp);
+        packet.emit(hdr.telemetry_report);
+        packet.emit(hdr.telemetry);
     }
 }
 
