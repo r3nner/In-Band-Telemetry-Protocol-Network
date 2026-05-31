@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  p4-mininet:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        # Aumente isso se tiver mais núcleos de CPU disponíveis no Docker Desktop para acelerar o build
+        JOBS: 4
+    image: p4-mininet-env
+    container_name: p4-mininet
+    # O modo privilegiado é estritamente necessário para o Mininet criar namespaces de rede
+    privileged: true
+    # Mapear a pasta atual do projeto (onde estão seus scripts e P4) para /workspace no container
+    volumes:
+      - .:/workspace
+    # Compartilhar a rede do host pode facilitar se você quiser testar os thrift ports (9090, etc) diretamente do Windows
+    ports:
+      - "9090:9090" # Porta Thrift do switch
+      - "50001:50001" # Porta gRPC (se estiver usando P4Runtime)    # Manter o container ativo
+    command: tail -f /dev/null

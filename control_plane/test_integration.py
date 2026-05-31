@@ -103,5 +103,101 @@ class TestSDNIntegration(unittest.TestCase):
         self.assertIn(1, sources)
         self.assertIn(2, sources)
 
+
+class TestSDNConfig(unittest.TestCase):
+    """Testes para a classe SDNConfig de configuração centralizada."""
+
+    def setUp(self):
+        import tempfile
+        import os
+        # Cria um arquivo temporário para cada teste
+        self.tmp = tempfile.NamedTemporaryFile(
+            mode='w', suffix='.json', delete=False
+        )
+        self.tmp.close()
+        self.config_path = self.tmp.name
+        # Remove o arquivo para testar a criação automática
+        os.remove(self.config_path)
+
+    def tearDown(self):
+        import os
+        if os.path.exists(self.config_path):
+            os.remove(self.config_path)
+
+    def test_create_default_config(self):
+        """Testa que um config.json é criado com defaults na primeira execução."""
+        import os
+        from config import SDNConfig
+        cfg = SDNConfig(self.config_path)
+        self.assertTrue(os.path.exists(self.config_path))
+        self.assertEqual(cfg.udp_port, 9999)
+        self.assertEqual(cfg.db_path, "control_plane/telemetry.db")
+        self.assertIsNone(cfg.topology_name)
+
+    def test_get_set(self):
+        """Testa leitura e escrita de parâmetros."""
+        from config import SDNConfig
+        cfg = SDNConfig(self.config_path)
+        cfg.set("udp_port", 8888)
+        self.assertEqual(cfg.get("udp_port"), 8888)
+        self.assertTrue(cfg.is_dirty)
+
+    def test_get_invalid_key(self):
+        """Testa que acessar chave inexistente levanta KeyError."""
+        from config import SDNConfig
+        cfg = SDNConfig(self.config_path)
+        with self.assertRaises(KeyError):
+            cfg.get("chave_inexistente")
+
+    def test_set_invalid_key(self):
+        """Testa que alterar chave inexistente levanta KeyError."""
+        from config import SDNConfig
+        cfg = SDNConfig(self.config_path)
+        with self.assertRaises(KeyError):
+            cfg.set("chave_inexistente", 123)
+
+    def test_save_and_reload(self):
+        """Testa que save persiste e uma nova instância lê os valores salvos."""
+        from config import SDNConfig
+        cfg1 = SDNConfig(self.config_path)
+        cfg1.set("udp_port", 7777)
+        cfg1.set("topology_name", "minha_topo")
+        cfg1.save()
+
+        # Cria uma nova instância lendo do mesmo arquivo
+        cfg2 = SDNConfig(self.config_path)
+        self.assertEqual(cfg2.udp_port, 7777)
+        self.assertEqual(cfg2.topology_name, "minha_topo")
+
+    def test_reset(self):
+        """Testa que reset restaura os valores padrão."""
+        from config import SDNConfig
+        cfg = SDNConfig(self.config_path)
+        cfg.set("udp_port", 1111)
+        cfg.set("topology_name", "alterada")
+        cfg.reset()
+        self.assertEqual(cfg.udp_port, 9999)
+        self.assertIsNone(cfg.topology_name)
+        self.assertFalse(cfg.is_dirty)
+
+    def test_type_conversion(self):
+        """Testa que set converte tipos automaticamente."""
+        from config import SDNConfig
+        cfg = SDNConfig(self.config_path)
+        cfg.set("udp_port", "5555")  # string -> int
+        self.assertEqual(cfg.get("udp_port"), 5555)
+        self.assertIsInstance(cfg.get("udp_port"), int)
+
+    def test_show_output(self):
+        """Testa que show retorna uma string formatada."""
+        from config import SDNConfig
+        cfg = SDNConfig(self.config_path)
+        output = cfg.show()
+        self.assertIn("udp_port", output)
+        self.assertIn("db_path", output)
+        self.assertIn("Configuração do Ecossistema SDN", output)
+
+
 if __name__ == "__main__":
     unittest.main()
+

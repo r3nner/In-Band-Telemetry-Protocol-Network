@@ -14,6 +14,7 @@ import logging
 import socket
 import struct
 import sys
+from typing import Optional
 
 from database import TelemetryDB
 
@@ -39,12 +40,12 @@ report_count: int = 0
 # ---------------------------------------------------------------------------
 # Instância do banco de dados (inicializada no main ou externamente)
 # ---------------------------------------------------------------------------
-db_instance: TelemetryDB | None = None
+db_instance: Optional[TelemetryDB] = None
 
 # ---------------------------------------------------------------------------
 # Nome da topologia ativa (definido via argparse ou externamente)
 # ---------------------------------------------------------------------------
-topology_name: str | None = None
+topology_name: Optional[str] = None
 
 # ---------------------------------------------------------------------------
 # Layout do wire format do header telemetry_report_t (16 bytes)
@@ -194,25 +195,39 @@ def main() -> int:
     """Ponto de entrada para execução standalone via linha de comando."""
     global db_instance, topology_name  # noqa: PLW0603 — inicialização global intencional
 
+    # Carrega a configuração centralizada para obter os defaults
+    try:
+        from config import SDNConfig
+        cfg = SDNConfig()
+        default_port = cfg.udp_port
+        default_log = cfg.log_level
+        default_topo = cfg.topology_name
+        default_db = cfg.db_path
+    except Exception:
+        default_port = 9999
+        default_log = "INFO"
+        default_topo = None
+        default_db = "control_plane/telemetry.db"
+
     parser = argparse.ArgumentParser(
         description="Coletor de telemetria In-Band para BMv2 (UDP)."
     )
     parser.add_argument(
         "--port",
         type=int,
-        default=9999,
-        help="Porta UDP para escuta (padrão: 9999)",
+        default=default_port,
+        help="Porta UDP para escuta (padrão: {})".format(default_port),
     )
     parser.add_argument(
         "--log-level",
-        default="INFO",
+        default=default_log,
         choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
-        help="Nível de log (padrão: INFO)",
+        help="Nível de log (padrão: {})".format(default_log),
     )
     parser.add_argument(
         "--topology-name",
-        default=None,
-        help="Nome da topologia ativa para atualização de arestas (padrão: None)",
+        default=default_topo,
+        help="Nome da topologia ativa para atualização de arestas (padrão: {})".format(default_topo),
     )
 
     args = parser.parse_args()
@@ -224,7 +239,7 @@ def main() -> int:
     )
 
     # Inicializa o banco de dados de telemetria
-    db_instance = TelemetryDB()
+    db_instance = TelemetryDB(default_db)
     topology_name = args.topology_name
     logger.info("Banco de dados de telemetria inicializado.")
     if topology_name:

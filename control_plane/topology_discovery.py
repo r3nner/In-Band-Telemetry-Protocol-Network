@@ -14,20 +14,30 @@ from datetime import datetime
 class TopologyDiscovery:
     """Descoberta e manipulação do grafo da topologia em JSON canônico."""
 
-    def __init__(self, db):
+    def __init__(self, db, cfg=None):
         """
-        Inicializa com uma instância de TelemetryDB.
+        Inicializa com uma instância de TelemetryDB e opcionalmente um SDNConfig.
+
+        Parâmetros:
+            db  – instância de TelemetryDB
+            cfg – instância de SDNConfig (opcional; usa defaults se None)
         """
         self.db = db
+        self.cfg = cfg
 
     def load_or_create(self, name: str, description: str = "",
-                       controller_ip: str = "10.0.0.254", udp_port: int = 9999) -> dict:
+                       controller_ip: str = None, udp_port: int = None) -> dict:
         """
         Tenta carregar a topologia do banco. Se não existir, cria uma topologia
         vazia no formato canônico e salva.
         """
         topo = self.db.load_topology(name)
         if topo is None:
+            # Usa valores do config centralizado ou defaults
+            if controller_ip is None:
+                controller_ip = self.cfg.controller_ip if self.cfg else "10.0.0.254"
+            if udp_port is None:
+                udp_port = self.cfg.controller_udp_port if self.cfg else 9999
             topo = {
                 "metadata": {
                     "name": name,
@@ -92,7 +102,7 @@ class TopologyDiscovery:
             
         self.db.save_topology(name, topo)
 
-    def infer_links(self, name: str, threshold_us: int = 1000) -> int:
+    def infer_links(self, name: str, threshold_us: int = None) -> int:
         """
         Infere novos enlaces bidirecionais comparando os relatórios de latência mais recentes.
         Se switch A/porta X e switch B/porta Y reportam latências similares
@@ -100,6 +110,10 @@ class TopologyDiscovery:
         
         Retorna o número de novos enlaces unidirecionais identificados.
         """
+        # Usa limiar do config centralizado ou default
+        if threshold_us is None:
+            threshold_us = self.cfg.infer_threshold_us if self.cfg else 1000
+
         # Busca relatórios recentes do tipo latência (0)
         reports = self.db.get_latest_metrics(metric_type=0, limit=500)
         
@@ -136,7 +150,7 @@ class TopologyDiscovery:
                         "source_port": r1['port_id'],
                         "target": r2['switch_id'],
                         "target_port": r2['port_id'],
-                        "bandwidth_mbps": 10.0,
+                        "bandwidth_mbps": self.cfg.default_bandwidth_mbps if self.cfg else 10.0,
                         "telemetry": {
                             "latency_us": r1['metric_value'], 
                             "throughput_bps": None, 

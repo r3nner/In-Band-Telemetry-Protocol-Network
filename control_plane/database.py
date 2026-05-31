@@ -9,6 +9,7 @@ e snapshots periódicos do estado da rede.
 import json
 import sqlite3
 from datetime import datetime
+from typing import Optional
 
 
 class TelemetryDB:
@@ -151,7 +152,7 @@ class TelemetryDB:
                 (name, graph_json, agora),
             )
 
-    def load_topology(self, name: str) -> dict | None:
+    def load_topology(self, name: str) -> Optional[dict]:
         """
         Carrega uma topologia pelo nome.
 
@@ -279,7 +280,7 @@ class TelemetryDB:
         return [(row["id"], row["topology_name"], row["created_at"])
                 for row in cursor.fetchall()]
 
-    def get_snapshot_by_id(self, snapshot_id: int) -> dict | None:
+    def get_snapshot_by_id(self, snapshot_id: int) -> Optional[dict]:
         """
         Retorna o conteúdo completo de um snapshot pelo ID.
 

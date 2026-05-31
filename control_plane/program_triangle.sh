@@ -7,11 +7,59 @@ set -euo pipefail
 # S1 uses two mirror sessions:
 #   session 250 -> port 2 (neighbor S2)
 #   session 251 -> port 3 (neighbor S3)
+#
+# Todas as variáveis são lidas do config.json centralizado.
+# Fallback para valores padrão caso o config.json não exista.
 
-S1_THRIFT_PORT="${S1_THRIFT_PORT:-9090}"
-S2_THRIFT_PORT="${S2_THRIFT_PORT:-9091}"
-S3_THRIFT_PORT="${S3_THRIFT_PORT:-9092}"
-PROBE_INTERVAL_US="${PROBE_INTERVAL_US:-1000000}"
+CONFIG_FILE="${CONFIG_FILE:-control_plane/config.json}"
+
+# ---------------------------------------------------------------------------
+# Leitura centralizada do config.json
+# ---------------------------------------------------------------------------
+if [ -f "${CONFIG_FILE}" ] && command -v python3 &>/dev/null; then
+    read_config() {
+        python3 -c "
+import json, sys
+with open('${CONFIG_FILE}') as f:
+    cfg = json.load(f)
+print(cfg.get('$1', '$2'))
+"
+    }
+    S1_THRIFT_PORT="$(read_config s1_thrift_port 9090)"
+    S2_THRIFT_PORT="$(read_config s2_thrift_port 9091)"
+    S3_THRIFT_PORT="$(read_config s3_thrift_port 9092)"
+    PROBE_INTERVAL_US="$(read_config probe_interval_us 1000000)"
+    REPORT_INTERVAL_US="$(read_config report_interval_us 1000000)"
+    CONTROLLER_IP="$(read_config controller_ip 10.0.0.254)"
+else
+    echo "[WARN] config.json não encontrado em '${CONFIG_FILE}', usando valores padrão."
+    S1_THRIFT_PORT="9090"
+    S2_THRIFT_PORT="9091"
+    S3_THRIFT_PORT="9092"
+    PROBE_INTERVAL_US="1000000"
+    REPORT_INTERVAL_US="1000000"
+    CONTROLLER_IP="10.0.0.254"
+fi
+
+echo "[INFO] Configuração carregada de: ${CONFIG_FILE}"
+echo "  S1_THRIFT_PORT=${S1_THRIFT_PORT}"
+echo "  S2_THRIFT_PORT=${S2_THRIFT_PORT}"
+echo "  S3_THRIFT_PORT=${S3_THRIFT_PORT}"
+echo "  PROBE_INTERVAL_US=${PROBE_INTERVAL_US}"
+echo "  REPORT_INTERVAL_US=${REPORT_INTERVAL_US}"
+echo "  CONTROLLER_IP=${CONTROLLER_IP}"
+echo
+
+# ---------------------------------------------------------------------------
+# Conversão do IP do controlador para inteiro (usado nos registradores P4)
+# ---------------------------------------------------------------------------
+ip_to_int() {
+    local ip="$1"
+    local a b c d
+    IFS='.' read -r a b c d <<< "${ip}"
+    echo $(( (a << 24) + (b << 16) + (c << 8) + d ))
+}
+CONTROLLER_IP_INT="$(ip_to_int "${CONTROLLER_IP}")"
 
 wait_for_thrift() {
     local thrift_port="$1"
@@ -43,7 +91,12 @@ run_cli() {
     echo "[OK] ${label} programmed"
 }
 
-S1_COMMANDS='reset_state
+# IPs de origem dos switches
+S1_IP_INT="$(ip_to_int 10.0.0.101)"
+S2_IP_INT="$(ip_to_int 10.0.0.102)"
+S3_IP_INT="$(ip_to_int 10.0.0.103)"
+
+S1_COMMANDS="reset_state
 mirroring_add 250 2
 mirroring_add 251 3
 
@@ -60,8 +113,8 @@ table_add ipv4_lpm ipv4_forward 10.0.0.1/32 => 00:00:00:00:01:01 00:aa:00:00:01:
 # Map each egress port to (register index, clone session)
 table_add probe_profile enable_probe 2 => 2 1 250
 table_add probe_profile enable_probe 3 => 3 1 251
-register_write probe_interval_reg 2 __PROBE_INTERVAL_US__
-register_write probe_interval_reg 3 __PROBE_INTERVAL_US__
+register_write probe_interval_reg 2 ${PROBE_INTERVAL_US}
+register_write probe_interval_reg 3 ${PROBE_INTERVAL_US}
 register_write last_probe_ts_reg 2 0
 register_write last_probe_ts_reg 3 0
 register_write throughput_reg 2 0
@@ -69,25 +122,17 @@ register_write throughput_reg 3 0
 register_write throughput_reg 1 0
 
 # --- configuração de exportação de telemetria via UDP ---
-# ID único do switch S1
 register_write switch_id_reg 0 1
-# IP de origem do switch S1 (10.0.0.101 = 167772261)
-register_write switch_ip_reg 0 167772261
-# IP do controlador (10.0.0.254 = 167772414)
-register_write controller_ip_reg 0 167772414
-# Sessão de clone para reports UDP — porta 1 (host side)
+register_write switch_ip_reg 0 ${S1_IP_INT}
+register_write controller_ip_reg 0 ${CONTROLLER_IP_INT}
 mirroring_add 252 1
-# Intervalo de report de throughput para porta monitorada 2 (1 segundo)
-register_write report_interval_reg 2 1000000
-# Último timestamp de report para porta monitorada 2
+register_write report_interval_reg 2 ${REPORT_INTERVAL_US}
 register_write last_report_ts_reg 2 0
-# Intervalo de report de throughput para porta monitorada 3 (1 segundo)
-register_write report_interval_reg 3 1000000
-# Último timestamp de report para porta monitorada 3
+register_write report_interval_reg 3 ${REPORT_INTERVAL_US}
 register_write last_report_ts_reg 3 0
-'
+"
 
-S2_COMMANDS='reset_state
+S2_COMMANDS="reset_state
 mirroring_add 250 1
 mirroring_add 251 2
 
@@ -99,33 +144,25 @@ table_add ipv4_lpm ipv4_forward 10.0.0.1/32  => 00:aa:00:00:01:02 00:aa:00:00:02
 table_add probe_profile enable_probe 1 => 1 2 250
 # egress 2 -> S3 (local idx 3, remote idx 2)
 table_add probe_profile enable_probe 2 => 3 2 251
-register_write probe_interval_reg 1 __PROBE_INTERVAL_US__
-register_write probe_interval_reg 3 __PROBE_INTERVAL_US__
+register_write probe_interval_reg 1 ${PROBE_INTERVAL_US}
+register_write probe_interval_reg 3 ${PROBE_INTERVAL_US}
 register_write last_probe_ts_reg 1 0
 register_write last_probe_ts_reg 3 0
 register_write throughput_reg 1 0
 register_write throughput_reg 3 0
 
 # --- configuração de exportação de telemetria via UDP ---
-# ID único do switch S2
 register_write switch_id_reg 0 2
-# IP de origem do switch S2 (10.0.0.102 = 167772262)
-register_write switch_ip_reg 0 167772262
-# IP do controlador (10.0.0.254 = 167772414)
-register_write controller_ip_reg 0 167772414
-# Sessão de clone para reports UDP — porta 1 (em direção a S1, que leva ao host)
+register_write switch_ip_reg 0 ${S2_IP_INT}
+register_write controller_ip_reg 0 ${CONTROLLER_IP_INT}
 mirroring_add 252 1
-# Intervalo de report de throughput para porta monitorada 1 (1 segundo)
-register_write report_interval_reg 1 1000000
-# Último timestamp de report para porta monitorada 1
+register_write report_interval_reg 1 ${REPORT_INTERVAL_US}
 register_write last_report_ts_reg 1 0
-# Intervalo de report de throughput para porta monitorada 2 (1 segundo)
-register_write report_interval_reg 2 1000000
-# Último timestamp de report para porta monitorada 2
+register_write report_interval_reg 2 ${REPORT_INTERVAL_US}
 register_write last_report_ts_reg 2 0
-'
+"
 
-S3_COMMANDS='reset_state
+S3_COMMANDS="reset_state
 mirroring_add 250 1
 mirroring_add 251 2
 mirroring_add 252 3
@@ -140,8 +177,8 @@ table_add probe_profile enable_probe 1 => 1 3 250
 table_add probe_profile enable_probe 2 => 2 3 251
 # egress 3 -> H2 (no probe)
 table_add probe_profile no_probe 3 =>
-register_write probe_interval_reg 1 __PROBE_INTERVAL_US__
-register_write probe_interval_reg 2 __PROBE_INTERVAL_US__
+register_write probe_interval_reg 1 ${PROBE_INTERVAL_US}
+register_write probe_interval_reg 2 ${PROBE_INTERVAL_US}
 register_write last_probe_ts_reg 1 0
 register_write last_probe_ts_reg 2 0
 register_write throughput_reg 1 0
@@ -149,34 +186,21 @@ register_write throughput_reg 2 0
 register_write throughput_reg 3 0
 
 # --- configuração de exportação de telemetria via UDP ---
-# ID único do switch S3
 register_write switch_id_reg 0 3
-# IP de origem do switch S3 (10.0.0.103 = 167772263)
-register_write switch_ip_reg 0 167772263
-# IP do controlador (10.0.0.254 = 167772414)
-register_write controller_ip_reg 0 167772414
-# Sessão de clone para reports UDP — porta 3 (host side)
+register_write switch_ip_reg 0 ${S3_IP_INT}
+register_write controller_ip_reg 0 ${CONTROLLER_IP_INT}
 mirroring_add 252 3
-# Intervalo de report de throughput para porta monitorada 1 (1 segundo)
-register_write report_interval_reg 1 1000000
-# Último timestamp de report para porta monitorada 1
+register_write report_interval_reg 1 ${REPORT_INTERVAL_US}
 register_write last_report_ts_reg 1 0
-# Intervalo de report de throughput para porta monitorada 2 (1 segundo)
-register_write report_interval_reg 2 1000000
-# Último timestamp de report para porta monitorada 2
+register_write report_interval_reg 2 ${REPORT_INTERVAL_US}
 register_write last_report_ts_reg 2 0
-'
-
-S1_COMMANDS="${S1_COMMANDS//__PROBE_INTERVAL_US__/${PROBE_INTERVAL_US}}"
-S2_COMMANDS="${S2_COMMANDS//__PROBE_INTERVAL_US__/${PROBE_INTERVAL_US}}"
-S3_COMMANDS="${S3_COMMANDS//__PROBE_INTERVAL_US__/${PROBE_INTERVAL_US}}"
+"
 
 run_cli "${S1_THRIFT_PORT}" "s1" "${S1_COMMANDS}"
 run_cli "${S2_THRIFT_PORT}" "s2" "${S2_COMMANDS}"
 run_cli "${S3_THRIFT_PORT}" "s3" "${S3_COMMANDS}"
 
 echo
-
 echo "Triangle topology control plane loaded."
-echo "Use python3 control_plane/read_latency.py --thrift-port ${S1_THRIFT_PORT} --indices 2,3"
+echo "Use python3 control_plane/cli.py para gerenciar a rede."
 echo "Telemetry probe interval: ${PROBE_INTERVAL_US} us"
