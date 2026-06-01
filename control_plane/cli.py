@@ -91,6 +91,7 @@ class SDNCLI(cmd.Cmd):
                 self.active_topology = name
                 # Persistir no config para restaurar na próxima sessão
                 self.cfg.topology_name = name
+                self.cfg.save()
                 # Atualizar a variável do coletor para associar os relatórios recebidos a esta topologia
                 telemetry_collector.topology_name = name
                 print("Topologia ativa definida para: '{}'".format(name))
@@ -327,8 +328,8 @@ class SDNCLI(cmd.Cmd):
                     tgt_p = e.get("target_port", "?")
                     lat = e.get("telemetry", {}).get("latency_us")
                     th = e.get("telemetry", {}).get("throughput_bps")
-                    lat_str = "{:.2f}ms".format(lat/1000.0) if lat else "?ms"
-                    th_str = "{:.1f}Mbps".format(th/1000000.0) if th else "?Mbps"
+                    lat_str = "{:.2f}ms".format(lat/1000.0) if lat is not None else "?ms"
+                    th_str = "{:.1f}Mbps".format(th/1000000.0) if th is not None else "?Mbps"
                     print("  {}:{} -> {}:{}  lat: {}  th: {}".format(src, src_p, tgt, tgt_p, lat_str, th_str))
 
             elif subcmd == "diff":
@@ -592,6 +593,7 @@ def main():
         cfg.set("udp_port", args.port)
     if args.topo is not None:
         cfg.set("topology_name", args.topo)
+        cfg.save()
 
     # Desabilitar verbose logging no coletor para não poluir a CLI
     logging.getLogger("telemetry_collector").setLevel(

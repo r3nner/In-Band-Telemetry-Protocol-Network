@@ -106,7 +106,7 @@ class TopologyDiscovery:
         """
         Infere novos enlaces bidirecionais comparando os relatórios de latência mais recentes.
         Se switch A/porta X e switch B/porta Y reportam latências similares
-        (diferença menor que o limiar), eles são considerados vizinhos.
+        (diferença menor ou igual ao limiar), eles são considerados vizinhos.
         
         Retorna o número de novos enlaces unidirecionais identificados.
         """
@@ -126,58 +126,66 @@ class TopologyDiscovery:
                 
         inferred_count = 0
         items = list(latest_reports.values())
-        matched = set() # Índices já combinados
-        
-        # Compara todos os pares
+        matched = set()  # Índices já combinados
+        candidates = []
+
+        # Gera todos os pares possíveis com diferença dentro do limiar
         for i in range(len(items)):
-            if i in matched: continue
             r1 = items[i]
-            
-            for j in range(i+1, len(items)):
-                if j in matched: continue
+            for j in range(i + 1, len(items)):
                 r2 = items[j]
-                
                 # Ignora enlaces na mesma caixa (não faz sentido p/ descoberta neste contexto)
                 if r1['switch_id'] == r2['switch_id']:
                     continue
-                    
                 diff = abs(r1['metric_value'] - r2['metric_value'])
-                if diff < threshold_us:
-                    # Cria a aresta ida (A->B)
-                    edge1 = {
-                        "id": f"e_inf_{r1['switch_id']}_{r1['port_id']}",
-                        "source": r1['switch_id'],
-                        "source_port": r1['port_id'],
-                        "target": r2['switch_id'],
-                        "target_port": r2['port_id'],
-                        "bandwidth_mbps": self.cfg.default_bandwidth_mbps if self.cfg else 10.0,
-                        "telemetry": {
-                            "latency_us": r1['metric_value'], 
-                            "throughput_bps": None, 
-                            "last_updated": datetime.now().isoformat()
-                        }
-                    }
-                    # Cria a aresta volta (B->A)
-                    edge2 = {
-                        "id": f"e_inf_{r2['switch_id']}_{r2['port_id']}",
-                        "source": r2['switch_id'],
-                        "source_port": r2['port_id'],
-                        "target": r1['switch_id'],
-                        "target_port": r1['port_id'],
-                        "bandwidth_mbps": 10.0,
-                        "telemetry": {
-                            "latency_us": r2['metric_value'], 
-                            "throughput_bps": None, 
-                            "last_updated": datetime.now().isoformat()
-                        }
-                    }
-                    self.register_edge(name, edge1)
-                    self.register_edge(name, edge2)
-                    matched.add(i)
-                    matched.add(j)
-                    inferred_count += 2
-                    break
-                    
+                if diff <= threshold_us:
+                    candidates.append((diff, i, j))
+
+        # Ordena por menor diferença para reduzir pareamentos ruins
+        candidates.sort(key=lambda item: item[0])
+
+        bandwidth = self.cfg.default_bandwidth_mbps if self.cfg else 10.0
+
+        for _, i, j in candidates:
+            if i in matched or j in matched:
+                continue
+            r1 = items[i]
+            r2 = items[j]
+
+            # Cria a aresta ida (A->B)
+            edge1 = {
+                "id": f"e_inf_{r1['switch_id']}_{r1['port_id']}",
+                "source": r1['switch_id'],
+                "source_port": r1['port_id'],
+                "target": r2['switch_id'],
+                "target_port": r2['port_id'],
+                "bandwidth_mbps": bandwidth,
+                "telemetry": {
+                    "latency_us": r1['metric_value'],
+                    "throughput_bps": None,
+                    "last_updated": datetime.now().isoformat()
+                }
+            }
+            # Cria a aresta volta (B->A)
+            edge2 = {
+                "id": f"e_inf_{r2['switch_id']}_{r2['port_id']}",
+                "source": r2['switch_id'],
+                "source_port": r2['port_id'],
+                "target": r1['switch_id'],
+                "target_port": r1['port_id'],
+                "bandwidth_mbps": bandwidth,
+                "telemetry": {
+                    "latency_us": r2['metric_value'],
+                    "throughput_bps": None,
+                    "last_updated": datetime.now().isoformat()
+                }
+            }
+            self.register_edge(name, edge1)
+            self.register_edge(name, edge2)
+            matched.add(i)
+            matched.add(j)
+            inferred_count += 2
+
         return inferred_count
 
     def get_topology_dict(self, name: str) -> dict:

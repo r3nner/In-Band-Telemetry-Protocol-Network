@@ -125,7 +125,7 @@ def on_report(switch_id: int, port_id: int, metric_type: int,
                     topology_name, switch_id, port_id, metric_type, metric_value
                 )
             except Exception:  # noqa: BLE001 — não interromper o coletor
-                logger.debug(
+                logger.exception(
                     "Não foi possível atualizar aresta na topologia '%s' "
                     "para switch=%d port=%d",
                     topology_name, switch_id, port_id,

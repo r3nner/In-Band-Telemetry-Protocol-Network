@@ -8,6 +8,7 @@ e snapshots periódicos do estado da rede.
 
 import json
 import sqlite3
+import threading
 from datetime import datetime
 from typing import Optional
 
@@ -22,7 +23,8 @@ class TelemetryDB:
         Parâmetros:
             db_path – caminho do arquivo SQLite (padrão: control_plane/telemetry.db)
         """
-        self.conn = sqlite3.connect(db_path)
+        self._lock = threading.Lock()
+        self.conn = sqlite3.connect(db_path, check_same_thread=False)
         # Permite acessar colunas por nome nos resultados
         self.conn.row_factory = sqlite3.Row
         self._criar_tabelas()
@@ -32,40 +34,41 @@ class TelemetryDB:
     # ------------------------------------------------------------------
     def _criar_tabelas(self) -> None:
         """Cria as tabelas do schema caso ainda não existam."""
-        with self.conn:
-            # Tabela de relatórios individuais de telemetria
-            self.conn.execute("""
-                CREATE TABLE IF NOT EXISTS telemetry_reports (
-                    id               INTEGER PRIMARY KEY AUTOINCREMENT,
-                    switch_id        INTEGER NOT NULL,
-                    port_id          INTEGER NOT NULL,
-                    metric_type      INTEGER NOT NULL,
-                    metric_value     INTEGER NOT NULL,
-                    switch_timestamp INTEGER NOT NULL,
-                    received_at      TEXT    NOT NULL DEFAULT (datetime('now'))
-                )
-            """)
+        with self._lock:
+            with self.conn:
+                # Tabela de relatórios individuais de telemetria
+                self.conn.execute("""
+                    CREATE TABLE IF NOT EXISTS telemetry_reports (
+                        id               INTEGER PRIMARY KEY AUTOINCREMENT,
+                        switch_id        INTEGER NOT NULL,
+                        port_id          INTEGER NOT NULL,
+                        metric_type      INTEGER NOT NULL,
+                        metric_value     INTEGER NOT NULL,
+                        switch_timestamp INTEGER NOT NULL,
+                        received_at      TEXT    NOT NULL DEFAULT (datetime('now'))
+                    )
+                """)
 
-            # Tabela de grafos de topologia (JSON canônico)
-            self.conn.execute("""
-                CREATE TABLE IF NOT EXISTS topology_graphs (
-                    id         INTEGER PRIMARY KEY AUTOINCREMENT,
-                    name       TEXT NOT NULL UNIQUE,
-                    graph_json TEXT NOT NULL,
-                    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-                    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-                )
-            """)
+                # Tabela de grafos de topologia (JSON canônico)
+                self.conn.execute("""
+                    CREATE TABLE IF NOT EXISTS topology_graphs (
+                        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                        name       TEXT NOT NULL UNIQUE,
+                        graph_json TEXT NOT NULL,
+                        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+                    )
+                """)
 
-            # Tabela de snapshots completos da topologia
-            self.conn.execute("""
-                CREATE TABLE IF NOT EXISTS snapshots (
-                    id             INTEGER PRIMARY KEY AUTOINCREMENT,
-                    topology_name  TEXT NOT NULL,
-                    created_at     TEXT NOT NULL DEFAULT (datetime('now')),
-                    data           TEXT NOT NULL
-                )
-            """)
+                # Tabela de snapshots completos da topologia
+                self.conn.execute("""
+                    CREATE TABLE IF NOT EXISTS snapshots (
+                        id             INTEGER PRIMARY KEY AUTOINCREMENT,
+                        topology_name  TEXT NOT NULL,
+                        created_at     TEXT NOT NULL DEFAULT (datetime('now')),
+                        data           TEXT NOT NULL
+                    )
+                """)
 
     # ------------------------------------------------------------------
     # Relatórios de telemetria
@@ -82,15 +85,16 @@ class TelemetryDB:
             metric_value     – valor da métrica
             switch_timestamp – timestamp do switch em microssegundos
         """
-        with self.conn:
-            self.conn.execute(
-                """
-                INSERT INTO telemetry_reports
-                    (switch_id, port_id, metric_type, metric_value, switch_timestamp)
-                VALUES (?, ?, ?, ?, ?)
-                """,
-                (switch_id, port_id, metric_type, metric_value, switch_timestamp),
-            )
+        with self._lock:
+            with self.conn:
+                self.conn.execute(
+                    """
+                    INSERT INTO telemetry_reports
+                        (switch_id, port_id, metric_type, metric_value, switch_timestamp)
+                    VALUES (?, ?, ?, ?, ?)
+                    """,
+                    (switch_id, port_id, metric_type, metric_value, switch_timestamp),
+                )
 
     def get_latest_metrics(self, switch_id: int = None,
                            metric_type: int = None,
@@ -120,9 +124,10 @@ class TelemetryDB:
         consulta += " ORDER BY id DESC LIMIT ?"
         parametros.append(limit)
 
-        cursor = self.conn.execute(consulta, parametros)
-        # Converte cada Row para dict
-        return [dict(row) for row in cursor.fetchall()]
+        with self._lock:
+            cursor = self.conn.execute(consulta, parametros)
+            # Converte cada Row para dict
+            return [dict(row) for row in cursor.fetchall()]
 
     # ------------------------------------------------------------------
     # Topologias
@@ -138,6 +143,10 @@ class TelemetryDB:
             name       – nome único da topologia
             graph_dict – dicionário seguindo o Schema de Topologia canônico
         """
+        with self._lock:
+            self._save_topology_unlocked(name, graph_dict)
+
+    def _save_topology_unlocked(self, name: str, graph_dict: dict) -> None:
         graph_json = json.dumps(graph_dict, ensure_ascii=False)
         agora = datetime.now().isoformat()
         with self.conn:
@@ -159,6 +168,10 @@ class TelemetryDB:
         Retorna:
             O dicionário da topologia, ou None se não existir.
         """
+        with self._lock:
+            return self._load_topology_unlocked(name)
+
+    def _load_topology_unlocked(self, name: str) -> Optional[dict]:
         cursor = self.conn.execute(
             "SELECT graph_json FROM topology_graphs WHERE name = ?",
             (name,),
@@ -175,11 +188,12 @@ class TelemetryDB:
         Retorna:
             Lista de tuplas (name, created_at, updated_at).
         """
-        cursor = self.conn.execute(
-            "SELECT name, created_at, updated_at FROM topology_graphs ORDER BY name"
-        )
-        return [(row["name"], row["created_at"], row["updated_at"])
-                for row in cursor.fetchall()]
+        with self._lock:
+            cursor = self.conn.execute(
+                "SELECT name, created_at, updated_at FROM topology_graphs ORDER BY name"
+            )
+            return [(row["name"], row["created_at"], row["updated_at"])
+                    for row in cursor.fetchall()]
 
     def update_edge_telemetry(self, topology_name: str, source_id: int,
                               source_port: int, metric_type: int,
@@ -198,40 +212,41 @@ class TelemetryDB:
             metric_type   – tipo de métrica (0 ou 1)
             metric_value  – novo valor da métrica
         """
-        grafo = self.load_topology(topology_name)
-        if grafo is None:
-            raise ValueError(f"Topologia '{topology_name}' não encontrada no banco.")
+        with self._lock:
+            grafo = self._load_topology_unlocked(topology_name)
+            if grafo is None:
+                raise ValueError(f"Topologia '{topology_name}' não encontrada no banco.")
 
-        # Percorre as arestas procurando a que corresponde
-        aresta_encontrada = False
-        for aresta in grafo.get("edges", []):
-            if aresta.get("source") == source_id and aresta.get("source_port") == source_port:
-                # Garante que o objeto telemetry existe
-                if aresta.get("telemetry") is None:
-                    aresta["telemetry"] = {
-                        "latency_us": None,
-                        "throughput_bps": None,
-                        "last_updated": None,
-                    }
+            # Percorre as arestas procurando a que corresponde
+            aresta_encontrada = False
+            for aresta in grafo.get("edges", []):
+                if aresta.get("source") == source_id and aresta.get("source_port") == source_port:
+                    # Garante que o objeto telemetry existe
+                    if aresta.get("telemetry") is None:
+                        aresta["telemetry"] = {
+                            "latency_us": None,
+                            "throughput_bps": None,
+                            "last_updated": None,
+                        }
 
-                # Atualiza o campo correto conforme o tipo de métrica
-                if metric_type == 0:
-                    aresta["telemetry"]["latency_us"] = metric_value
-                elif metric_type == 1:
-                    aresta["telemetry"]["throughput_bps"] = metric_value
+                    # Atualiza o campo correto conforme o tipo de métrica
+                    if metric_type == 0:
+                        aresta["telemetry"]["latency_us"] = metric_value
+                    elif metric_type == 1:
+                        aresta["telemetry"]["throughput_bps"] = metric_value
 
-                aresta["telemetry"]["last_updated"] = datetime.now().isoformat()
-                aresta_encontrada = True
-                break
+                    aresta["telemetry"]["last_updated"] = datetime.now().isoformat()
+                    aresta_encontrada = True
+                    break
 
-        if not aresta_encontrada:
-            raise ValueError(
-                f"Aresta com source={source_id}, source_port={source_port} "
-                f"não encontrada na topologia '{topology_name}'."
-            )
+            if not aresta_encontrada:
+                raise ValueError(
+                    f"Aresta com source={source_id}, source_port={source_port} "
+                    f"não encontrada na topologia '{topology_name}'."
+                )
 
-        # Salva a topologia atualizada de volta no banco
-        self.save_topology(topology_name, grafo)
+            # Salva a topologia atualizada de volta no banco
+            self._save_topology_unlocked(topology_name, grafo)
 
     # ------------------------------------------------------------------
     # Snapshots
@@ -248,22 +263,23 @@ class TelemetryDB:
         Retorna:
             O ID do snapshot criado.
         """
-        grafo = self.load_topology(topology_name)
-        if grafo is None:
-            raise ValueError(
-                f"Topologia '{topology_name}' não encontrada para snapshot."
-            )
+        with self._lock:
+            grafo = self._load_topology_unlocked(topology_name)
+            if grafo is None:
+                raise ValueError(
+                    f"Topologia '{topology_name}' não encontrada para snapshot."
+                )
 
-        dados_json = json.dumps(grafo, ensure_ascii=False)
-        with self.conn:
-            cursor = self.conn.execute(
-                """
-                INSERT INTO snapshots (topology_name, data)
-                VALUES (?, ?)
-                """,
-                (topology_name, dados_json),
-            )
-            return cursor.lastrowid
+            dados_json = json.dumps(grafo, ensure_ascii=False)
+            with self.conn:
+                cursor = self.conn.execute(
+                    """
+                    INSERT INTO snapshots (topology_name, data)
+                    VALUES (?, ?)
+                    """,
+                    (topology_name, dados_json),
+                )
+                return cursor.lastrowid
 
     def get_snapshots(self, limit: int = 10) -> list:
         """
@@ -272,13 +288,14 @@ class TelemetryDB:
         Retorna:
             Lista de tuplas (id, topology_name, created_at).
         """
-        cursor = self.conn.execute(
-            "SELECT id, topology_name, created_at FROM snapshots "
-            "ORDER BY id DESC LIMIT ?",
-            (limit,),
-        )
-        return [(row["id"], row["topology_name"], row["created_at"])
-                for row in cursor.fetchall()]
+        with self._lock:
+            cursor = self.conn.execute(
+                "SELECT id, topology_name, created_at FROM snapshots "
+                "ORDER BY id DESC LIMIT ?",
+                (limit,),
+            )
+            return [(row["id"], row["topology_name"], row["created_at"])
+                    for row in cursor.fetchall()]
 
     def get_snapshot_by_id(self, snapshot_id: int) -> Optional[dict]:
         """
@@ -288,18 +305,20 @@ class TelemetryDB:
             O dicionário completo da topologia no momento do snapshot,
             ou None se o ID não existir.
         """
-        cursor = self.conn.execute(
-            "SELECT data FROM snapshots WHERE id = ?",
-            (snapshot_id,),
-        )
-        row = cursor.fetchone()
-        if row is None:
-            return None
-        return json.loads(row["data"])
+        with self._lock:
+            cursor = self.conn.execute(
+                "SELECT data FROM snapshots WHERE id = ?",
+                (snapshot_id,),
+            )
+            row = cursor.fetchone()
+            if row is None:
+                return None
+            return json.loads(row["data"])
 
     # ------------------------------------------------------------------
     # Encerramento
     # ------------------------------------------------------------------
     def close(self) -> None:
         """Fecha a conexão com o banco de dados."""
-        self.conn.close()
+        with self._lock:
+            self.conn.close()
