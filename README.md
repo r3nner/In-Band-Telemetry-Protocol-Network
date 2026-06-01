@@ -109,7 +109,7 @@ sudo python3 topologies/linear_topo.py --json build/main.json
 2. In Mininet CLI, program switches and send traffic:
 
 ```bash
-PROBE_INTERVAL_US=200000 sh ./control_plane/program_linear.sh
+PROBE_INTERVAL_US=200000 bash ./control_plane/program_linear.sh
 h1 ping -c 5 10.0.0.2
 ```
 
@@ -141,7 +141,7 @@ sudo python3 topologies/triangle_topo.py --json build/main.json
 2. In Mininet CLI, program switches and test both route classes:
 
 ```bash
-PROBE_INTERVAL_US=200000 sh ./control_plane/program_triangle.sh
+PROBE_INTERVAL_US=200000 bash ./control_plane/program_triangle.sh
 h1 ping -c 5 10.0.20.2
 h1 ping -c 5 10.0.30.2
 ```
@@ -194,7 +194,7 @@ sudo python3 topologies/packet_pair_topo.py --json build/main.json --probe-bw-mb
 2. In Mininet CLI, load the probe forwarding rules:
 
 ```bash
-sh ./control_plane/program_packet_pair.sh
+bash ./control_plane/program_packet_pair.sh
 ```
 
 3. Start the receiver first on the probe host attached to S2:
@@ -226,7 +226,7 @@ The receiver logs the arrival of packet 1 and packet 2, computes `delta_t`, and 
 Example:
 
 ```bash
-PROBE_INTERVAL_US=500000 sh ./control_plane/program_triangle.sh
+PROBE_INTERVAL_US=500000 bash ./control_plane/program_triangle.sh
 ```
 
 ## Troubleshooting

@@ -6,16 +6,16 @@ Laboratório P4/BMv2/Mininet para telemetria ativa in-band de latência, through
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                    Data Plane (P4/BMv2)                  │
-│  Sondas ──► Latência ──► Clone ──► UDP Report (porta 9999)│
+│                    Data Plane (P4/BMv2)                 │
+|Sondas ──► Latência ──► Clone ──► UDP Report (porta 9999)│
 └──────────────────────┬──────────────────────────────────┘
                        │ UDP
 ┌──────────────────────▼──────────────────────────────────┐
-│                  Control Plane (Python)                   │
-│  Coletor UDP ──► SQLite ──► Topology Discovery ──► CLI   │
-│                                                          │
-│  config.json ◄──► SDNConfig (configuração centralizada)  │
-└──────────────────────────────────────────────────────────┘
+│                  Control Plane (Python)                 │
+│  Coletor UDP ──► SQLite ──► Topology Discovery ──► CLI  │
+│                                                         │
+│  config.json ◄──► SDNConfig (configuração centralizada) │
+└─────────────────────────────────────────────────────────┘
 ```
 
 1. O switch clona pacotes em sondas, calcula latência e exporta via UDP.
@@ -113,7 +113,7 @@ O prompt `mininet>` aparecerá. **Deixe este terminal aberto.**
 ```bash
 docker exec -it p4-mininet bash
 cd /workspace
-sh ./control_plane/program_linear.sh
+bash ./control_plane/program_linear.sh
 ```
 
 > Os parâmetros são lidos automaticamente do `config.json`. Não é necessário passar variáveis de ambiente.
@@ -174,7 +174,7 @@ Mesma lógica, mas com 3 switches:
 sudo python3 topologies/triangle_topo.py --json build/main.json
 
 # Terminal 2
-sh ./control_plane/program_triangle.sh
+bash ./control_plane/program_triangle.sh
 
 # Terminal 3
 python3 control_plane/cli.py
@@ -238,7 +238,7 @@ sudo python3 control_plane/test_link_capacity.py \
 sudo python3 topologies/packet_pair_topo.py --json build/main.json --probe-bw-mbps 1000 --bottleneck-bw-mbps 10
 
 # Terminal 1 — Programar
-sh ./control_plane/program_packet_pair.sh
+bash ./control_plane/program_packet_pair.sh
 
 # Terminal 2 — Receptor
 sudo python3 control_plane/sniff_probes.py --iface probe_s2-eth0
