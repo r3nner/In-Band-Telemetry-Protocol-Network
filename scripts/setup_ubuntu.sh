@@ -56,7 +56,7 @@ ${SUDO} env DEBIAN_FRONTEND=noninteractive apt-get install -y \
     mininet
 echo "[2/6] Installing Python helper packages..."
 python3 -m pip install --upgrade pip
-python3 -m pip install --no-cache-dir mininet
+python3 -m pip install --no-cache-dir mininet scapy
 
 echo "[3/6] Preparing source tree in ${P4_INSTALL_DIR}..."
 ${SUDO} mkdir -p "${P4_INSTALL_DIR}"

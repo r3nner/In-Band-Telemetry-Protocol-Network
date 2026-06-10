@@ -1,195 +1,84 @@
-#!/usr/bin/env python3
-"""
-Test link capacity using packet-pair dispersion.
-
-This script runs the packet-pair capacity test in a coordinated way:
-1. Starts the topology (packet_pair_topo.py)
-2. Programs the switches (program_packet_pair.sh)
-3. Starts the sniffer on probe_s2-eth0
-4. Sends probes from probe_s1-eth0
-5. Reports capacity in bps
-
-Usage:
-    sudo python3 control_plane/test_link_capacity.py \
-        --json build/main.json \
-        --probe-bw-mbps 1000 \
-        --bottleneck-bw-mbps 10 \
-        --frame-size 1500
-"""
 import argparse
-import os
-import signal
 import subprocess
-import sys
-import threading
 import time
-from pathlib import Path
+import sys
 
 
-def run_command(cmd, description, shell=False, timeout=None):
-    """Run a shell command and return output."""
-    print(f"\n[INFO] {description}")
-    print(f"[CMD] {cmd if isinstance(cmd, str) else ' '.join(cmd)}")
-    try:
-        result = subprocess.run(
-            cmd,
-            shell=shell,
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-        )
-        if result.returncode != 0:
-            print(f"[STDERR] {result.stderr}")
-        return result
-    except subprocess.TimeoutExpired:
-        print(f"[TIMEOUT] Command exceeded {timeout}s")
-        return None
-    except Exception as e:
-        print(f"[ERROR] {e}")
-        return None
+def run_command(cmd: list, desc: str) -> subprocess.CompletedProcess:
+    print(f"\n[EXEC] {' '.join(cmd)}")
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        print(f"[ERROR] {desc} failed. Exit code {result.returncode}")
+        print(f"STDOUT:\n{result.stdout}")
+        print(f"STDERR:\n{result.stderr}")
+    else:
+        print(f"[OK] {desc} succeeded.")
+    return result
 
 
-def main():
-    parser = argparse.ArgumentParser(
-        description="Automated packet-pair capacity test.",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  # Test with 10 Mbps bottleneck
-  sudo python3 control_plane/test_link_capacity.py \\
-    --json build/main.json \\
-    --bottleneck-bw-mbps 10
+def get_mininet_host_pid(hostname: str) -> str:
+    result = subprocess.run(["pgrep", "-f", f"mininet:{hostname}$"], capture_output=True, text=True)
+    pids = result.stdout.strip().split()
+    if not pids:
+        # Fallback if pattern is slightly different
+        result = subprocess.run(["pgrep", "-f", f"bash.*mininet:{hostname}"], capture_output=True, text=True)
+        pids = result.stdout.strip().split()
+        if not pids:
+            raise RuntimeError(f"Mininet host '{hostname}' not found. Is Mininet running?")
+    return pids[0]
 
-  # Test with custom frame size
-  sudo python3 control_plane/test_link_capacity.py \\
-    --json build/main.json \\
-    --bottleneck-bw-mbps 100 \\
-    --frame-size 500
-        """,
-    )
-    parser.add_argument(
-        "--json",
-        required=True,
-        help="Path to BMv2 JSON (usually build/main.json)",
-    )
-    parser.add_argument(
-        "--probe-bw-mbps",
-        type=float,
-        default=1000.0,
-        help="Bandwidth for probe links in Mbps (default 1000)",
-    )
-    parser.add_argument(
-        "--bottleneck-bw-mbps",
-        type=float,
-        default=10.0,
-        help="Bandwidth for bottleneck link in Mbps (default 10)",
-    )
-    parser.add_argument(
-        "--frame-size",
-        type=int,
-        default=1500,
-        help="Frame size for probes in bytes (default 1500)",
-    )
-    parser.add_argument(
-        "--thrift-base",
-        type=int,
-        default=9090,
-        help="Thrift base port (default 9090)",
-    )
+
+def send_probe_from_host(hostname: str, frame_size: int, probe_id: int):
+    pid = get_mininet_host_pid(hostname)
+    cmd = [
+        "nsenter", "-t", pid, "-n",
+        "python3", "control_plane/send_probes.py",
+        "--iface", f"{hostname}-eth0",
+        "--frame-size", str(frame_size),
+        "--probe-id", str(probe_id)
+    ]
+    run_command(cmd, f"Sending probe from {hostname}")
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Automated In-Band Link Capacity measurement (requires running Mininet)")
+    parser.add_argument("--host", default="h1", help="Mininet host to inject the probe from (default: h1)")
+    parser.add_argument("--probe-id", type=lambda x: int(x, 0), default=1, help="Probe ID (hex or int) to match the switch clone rule")
+    parser.add_argument("--thrift-port", type=int, default=9091, help="Thrift port of the receiver switch to read the capacity from")
+    parser.add_argument("--frame-size", type=int, default=1500, help="Size of probe packets")
     args = parser.parse_args()
 
-    ws = Path.cwd()
-    json_path = ws / args.json
-    if not json_path.exists():
-        print(f"[ERROR] JSON file not found: {json_path}")
-        return 1
-
-    prog_script = ws / "control_plane" / "program_packet_pair.sh"
-    if not prog_script.exists():
-        print(f"[ERROR] Program script not found: {prog_script}")
-        return 1
-
-    # Step 1: Start topology
-    topo_cmd = [
-        "sudo",
-        "python3",
-        "topologies/packet_pair_topo.py",
-        "--json",
-        str(json_path),
-        "--probe-bw-mbps",
-        str(args.probe_bw_mbps),
-        "--bottleneck-bw-mbps",
-        str(args.bottleneck_bw_mbps),
-        "--no-cli",
-    ]
-    result = run_command(topo_cmd, "Step 1: Starting packet-pair topology")
-    if not result or result.returncode != 0:
-        print("[ERROR] Failed to start topology")
-        return 1
-
-    # Give switches time to initialize
-    print("\n[INFO] Waiting for switches to initialize...")
-    time.sleep(2)
-
-    # Step 2: Program switches
-    prog_cmd = f"cd {ws} && bash {prog_script}"
-    result = run_command(prog_cmd, "Step 2: Programming switch forwarding rules", shell=True)
-    if not result or result.returncode != 0:
-        print("[ERROR] Failed to program switches")
-        return 1
-
-    print("\n[INFO] Waiting for control plane to stabilize...")
-    time.sleep(1)
-
-    # Step 3: Start sniffer in background
-    sniff_cmd = [
-        "sudo",
-        "python3",
-        "control_plane/sniff_probes.py",
-        "--iface",
-        "probe_s2-eth0",
-        "--timeout",
-        "10",
-    ]
-
-    print("\n[INFO] Step 3: Starting packet sniffer on probe_s2-eth0...")
-    sniff_proc = subprocess.Popen(
-        sniff_cmd,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-    )
-
-    # Give sniffer time to start listening
-    time.sleep(0.5)
-
-    # Step 4: Send probes
-    send_cmd = [
-        "sudo",
-        "python3",
-        "control_plane/send_probes.py",
-        "--iface",
-        "probe_s1-eth0",
-        "--frame-size",
-        str(args.frame_size),
-    ]
-    print("\n[INFO] Step 4: Sending back-to-back probes from probe_s1-eth0...")
-    result = run_command(send_cmd, "Sending probes")
-
-    # Step 5: Collect sniffer output
-    print("\n[INFO] Step 5: Collecting capacity measurement...")
+    print("\n" + "="*60)
+    print("Measuring Link Capacity via Packet-Pair...")
+    print("="*60)
+    
     try:
-        sniff_stdout, _ = sniff_proc.communicate(timeout=12)
-        print(sniff_stdout)
-    except subprocess.TimeoutExpired:
-        sniff_proc.kill()
-        print("[WARNING] Sniffer timeout")
+        # Step 1: Send single probe trigger
+        print(f"\n[INFO] Step 1: Sending single capacity probe trigger from {args.host} (probe_id={hex(args.probe_id)})...")
+        send_probe_from_host(args.host, args.frame_size, args.probe_id)
+
+        # Step 2: Collect telemetry via Thrift
+        print(f"\n[INFO] Step 2: Collecting capacity measurement from P4 register via Thrift (port {args.thrift_port})...")
+        time.sleep(1)  # Give time for the probe to cross the network
+        read_cmd = [
+            "python3",
+            "control_plane/read_link_capacity.py",
+            "--thrift-port",
+            str(args.thrift_port),
+            "--frame-size",
+            str(args.frame_size),
+        ]
+        result = run_command(read_cmd, "Reading link capacity")
+        print("\n--- RESULTS ---")
+        print(result.stdout)
+
+    except Exception as e:
+        print(f"\n[FATAL ERROR] {e}")
+        sys.exit(1)
 
     print("\n" + "="*60)
-    print("[DONE] Packet-pair capacity test completed")
+    print("[DONE] Link Capacity measurement completed")
     print("="*60)
-    return 0
-
 
 if __name__ == "__main__":
-    sys.exit(main())
+    main()

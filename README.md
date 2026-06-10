@@ -1,217 +1,97 @@
-# Latency-Telemetry
+# In-Band Telemetry — SDN Ecosystem
 
-P4/BMv2/Mininet lab for active in-band latency telemetry.
+P4/BMv2/Mininet laboratory for active in-band telemetry of latency, throughput, transmission delay, and link capacity (packet-pair), without the need for a database or centralized CLI.
 
-This project estimates per-link latency by cloning selected IPv4 packets into telemetry probes, reflecting them on the neighbor switch, and storing round-trip derived values in data-plane registers.
+## Simplified Architecture
 
-It also estimates transmission delay as a software-derived metric using the packet length reported by BMv2 and the link bandwidth configured in Mininet.
-
-It also includes a throughput path based on control-plane polling of byte counters, plus an experiment helper for running iperf inside the Mininet topology.
-
-It now also includes a separate packet-pair dispersion experiment using out-of-band Scapy probes and a dedicated L2 forwarding path for telemetry `msg_type=2`.
-
-## How It Works
-
-1. Source switch clones selected IPv4 packets and emits telemetry probes.
-2. Neighbor switch reflects probes and adds local processing time.
-3. Source switch computes one-way estimate:
-
-$$
-latency = (t_{receive} - t_{send} - t_{proc}) / 2
-$$
-
-4. Latency is written to `latency_reg[index]` and mirrored as a report to keep both peers synchronized.
-
-5. Transmission delay is computed in the control plane from:
-
-$$
-d_{trans} = \frac{L}{R}
-$$
-
-where `L` comes from `packet_length_reg[index]` and `R` comes from the `TCLink` bandwidth configured for the path.
+1. The P4 switch intercepts frames or clones probes to calculate telemetry in the Data Plane.
+2. The results (times, bytes, lengths) are stored in native P4 `registers` (SRAM).
+3. Independent Python scripts query these `registers` via Thrift (BMv2 standard API) in a decoupled manner, calculate the metric, and display it on the screen.
 
 ## Repository Layout
 
-- `p4/main.p4`: P4_16 v1model data plane.
-- `scripts/setup_ubuntu.sh`: full Ubuntu bootstrap (PI, BMv2, p4c, Mininet, Python deps).
-- `scripts/health_check.sh`: verifies toolchain, compilation, Python imports, and Mininet smoke test.
-- `scripts/build_p4.sh`: builds `p4/main.p4` into `build/main.json`.
-- `topologies/p4_mininet.py`: BMv2 Mininet integration classes.
-- `topologies/linear_topo.py`: linear topology `h1-s1-s2-h2`.
-- `topologies/triangle_topo.py`: triangle topology with two S1 egress paths.
-- `topologies/packet_pair_topo.py`: linear packet-pair topology with `probe_s1` and `probe_s2`.
-- `control_plane/program_linear.sh`: programs linear routing + mirroring.
-- `control_plane/program_triangle.sh`: programs triangle routing + mirroring.
-- `control_plane/program_packet_pair.sh`: programs the packet-pair probe path.
-- `control_plane/read_latency.py`: polls latency registers over thrift.
-- `control_plane/read_throughput.py`: polls throughput counters over thrift and prints bps from byte deltas.
-- `control_plane/read_transmission_delay.py`: polls packet-length registers over thrift and derives transmission delay from link bandwidth.
-- `control_plane/run_throughput_test.py`: runs an end-to-end iperf throughput demo.
-- `control_plane/test_link_capacity.py`: automated packet-pair capacity test (one-command).
-- `control_plane/send_probes.py`: Scapy sender for back-to-back packet-pair probes.
-- `control_plane/sniff_probes.py`: Scapy receiver that timestamps two probe arrivals and computes capacity.
-- `build/main.json`: generated BMv2 JSON artifact.
+├── Dockerfile / docker-compose.yml    # Ready-to-use Docker environment
+├── p4/main.p4                         # P4_16 v1model data plane
+├── scripts/
+│   ├── setup_ubuntu.sh                # Bootstrap (PI, BMv2, p4c, Mininet)
+│   ├── health_check.sh                # Toolchain verification
+│   └── build_p4.sh                    # Compiles main.p4 → build/main.json
+├── topologies/
+│   ├── p4_mininet.py                  # BMv2 + Mininet integration
+│   ├── linear_topo.py                 # h1-s1-s2-h2
+│   ├── triangle_topo.py               # h1-s1-s2-s3-h2 + s1-s3
+│   └── packet_pair_topo.py            # Packet-pair dispersion
+├── control_plane/
+│   ├── program_linear.sh              # Programs switches (linear topology)
+│   ├── program_triangle.sh            # Programs switches (triangular topology)
+│   ├── program_packet_pair.sh         # Programs packet-pair probes
+│   ├── read_latency.py                # Latency register reader
+│   ├── read_throughput.py             # Throughput counter reader
+│   ├── read_transmission_delay.py     # Estimation based on packet size
+│   ├── read_link_capacity.py          # Dispersion register reader (delta_t)
+│   ├── run_throughput_test.py         # iperf throughput automation
+│   ├── send_probes.py                 # Scapy probe trigger
+│   └── test_link_capacity.py          # Packet-pair automation
+├── build/main.json                    # Compiled artifact for BMv2
 
-## Prerequisites
+## Running the Complete Ecosystem
 
-- Ubuntu Linux.
-- `sudo` access.
-- Internet access to clone/build dependencies.
+You need **2 terminals** open in the container simultaneously.
 
-## Quick Start
+**Step-by-step:**
+1. Start the topology and program the switch:
+   ```bash
+   sudo python3 topologies/linear_topo.py --json build/main.json
+   bash ./control_plane/program_linear.sh
+   ```
+2. Generate traffic (in Mininet CLI):
+   ```bash
+   mininet> h1 ping -c 5 10.0.0.2
+   ```
 
-1. Bootstrap environment (first time only):
+### Terminal 2 — Read Metrics
 
-```bash
-chmod +x scripts/setup_ubuntu.sh
-./scripts/setup_ubuntu.sh
-```
-
-2. Validate environment:
-
-```bash
-chmod +x scripts/health_check.sh scripts/build_p4.sh
-./scripts/health_check.sh
-```
-
-3. Compile P4:
-
-```bash
-./scripts/build_p4.sh
-```
-
-## Transmission Delay
-
-The Mininet links already use `TCLink`. To make transmission delay reproducible, the topology scripts now accept `--link-bw-mbps` and apply that value to every link in the topology.
-
-Example for the linear topology:
+With the traffic running, use a separate terminal to invoke the Python readers via the Thrift protocol:
 
 ```bash
-sudo python3 topologies/linear_topo.py --json build/main.json --link-bw-mbps 10
-```
+# Read Latency
+python3 control_plane/read_latency.py --thrift-port 9090 --indices 2
 
-After programming the switch, read the transmission delay estimate with:
+# Read Throughput (will run indefinitely updating per second)
+python3 control_plane/read_throughput.py --thrift-port 9090 --indices 2
 
-```bash
+# Read Transmission Delay (assuming link configured at 10 Mbps)
 python3 control_plane/read_transmission_delay.py --thrift-port 9090 --indices 2 --link-bw-mbps 10
 ```
 
-The control plane reads `packet_length_reg`, converts bytes to bits, and computes `L/R` in software. The value is an analytical estimate, not a hardware-timed measurement from BMv2.
+## Supported Metrics
 
-## Run: Linear Topology
+Below we explain how to test each of the 4 supported network parameters, detailing the command to execute and the mechanics behind the measurement.
 
-1. Start Mininet topology:
+### 1. Latency
+**How it works:** 
+The source switch clones data packets to create a telemetry probe, inserting its send timestamp ($t_{send}$). The destination switch (reflector) receives the probe, marks its internal processing time ($t_{proc}$), and returns it. The source receives it back, gets the current time ($t_{recv}$), and calculates the exact round-trip via hardware: `(t_recv - t_send - t_proc) / 2`.
+The result is stored in the switch's register and read via Thrift.
 
+### 2. Throughput
+**How it works:**
+The P4 switch has hardware counters that sum the size of every packet exiting a port. The control plane script polls this counter via Thrift periodically, subtracts the previous value, and calculates bytes/second.
+
+### 3. Transmission Delay
+**How it works:**
+The P4 hardware stores the size ($L$) of the last forwarded packet in a register. The control plane script reads this register via Thrift and divides it by the physical speed configuration of the link ($R$) set by Mininet: $d_{trans} = L / R$.
+
+### 4. Link Capacity (In-Band Packet-Pair)
+**How it works:**
+The actual physical link capacity is discovered using two packets in a burst. 
+The script generates *only 1 probe packet* and sends it to the **Injector Switch**. The P4 of this switch uses the hardware engine to clone the packet and drop both into the same output queue with maximum priority (Packet-Pair Back-to-Back). 
+Upon crossing the network bottleneck, they distance themselves from each other (dispersion). The **Receiver Switch** notes the time Packet 1 arrived ($t_1$). When Packet 2 arrives, it calculates $\Delta T = t_2 - t_1$ using the P4 ALUs, saving the result of $\Delta T$ in a register. The control plane simply reads $\Delta T$ via Thrift and finalizes the calculation: $C = L_{bits} / \Delta T$.
+
+**Step-by-step:**
+With the topology (linear or triangle) running and configured in one terminal, simply execute the capacity test in another:
 ```bash
-sudo python3 topologies/linear_topo.py --json build/main.json
+python3 control_plane/test_link_capacity.py --host h1 --thrift-port 9091 --frame-size 1500
 ```
-
-2. In Mininet CLI, program switches and send traffic:
-
-```bash
-PROBE_INTERVAL_US=200000 bash ./control_plane/program_linear.sh
-h1 ping -c 5 10.0.0.2
-```
-
-3. In another terminal, read latency register:
-
-```bash
-python3 control_plane/read_latency.py --thrift-port 9090 --indices 2
-```
-
-### Throughput test
-
-Run the automated throughput demo from the host:
-
-```bash
-sudo python3 control_plane/run_throughput_test.py --topology linear --json build/main.json --link-bw-mbps 10
-```
-
-This starts iperf on `h2`, runs an iperf client on `h1`, and polls `throughput_reg` during the traffic burst.
-It also polls `packet_length_reg` to report transmission delay estimates for the monitored indices.
-
-## Run: Triangle Topology
-
-1. Start Mininet topology:
-
-```bash
-sudo python3 topologies/triangle_topo.py --json build/main.json
-```
-
-2. In Mininet CLI, program switches and test both route classes:
-
-```bash
-PROBE_INTERVAL_US=200000 bash ./control_plane/program_triangle.sh
-h1 ping -c 5 10.0.20.2
-h1 ping -c 5 10.0.30.2
-```
-
-3. In another terminal, read both tracked indices:
-
-```bash
-python3 control_plane/read_latency.py --thrift-port 9090 --indices 2,3
-```
-
-### Throughput test
-
-Run the automated throughput demo from the host:
-
-```bash
-sudo python3 control_plane/run_throughput_test.py --topology triangle --json build/main.json --link-bw-mbps 10
-```
-
-The helper programs the switch, starts the traffic burst, and reads the per-index throughput counters in parallel.
-It also derives transmission delay from the configured link bandwidth and the last packet length seen by each monitored index.
-
-## Run: Packet-Pair Capacity Test
-
-### Quick Test (Automated)
-
-Run a complete capacity test in one command:
-
-```bash
-sudo python3 control_plane/test_link_capacity.py \
-  --json build/main.json \
-  --bottleneck-bw-mbps 10 \
-  --frame-size 1500
-```
-
-This script:
-1. Starts the packet-pair topology
-2. Programs the switches
-3. Starts the sniffer on `probe_s2-eth0`
-4. Sends back-to-back probes from `probe_s1-eth0`
-5. Reports estimated link capacity in bps
-
-### Manual Test (Step-by-step)
-
-1. Start the dedicated topology:
-
-```bash
-sudo python3 topologies/packet_pair_topo.py --json build/main.json --probe-bw-mbps 1000 --bottleneck-bw-mbps 10
-```
-
-2. In Mininet CLI, load the probe forwarding rules:
-
-```bash
-bash ./control_plane/program_packet_pair.sh
-```
-
-3. Start the receiver first on the probe host attached to S2:
-
-```bash
-sudo python3 control_plane/sniff_probes.py --iface probe_s2-eth0
-```
-
-4. Send the back-to-back probes from the host attached to S1:
-
-```bash
-sudo python3 control_plane/send_probes.py --iface probe_s1-eth0
-```
-
-The receiver logs the arrival of packet 1 and packet 2, computes `delta_t`, and prints the estimated capacity in bps using `bits / delta_t`.
-
-## Configuration
 
 - `PROBE_INTERVAL_US`: probe emission interval in microseconds.
 - `PROBE_INTERVAL_US=0`: probe every eligible packet.
