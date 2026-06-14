@@ -10,6 +10,7 @@ typedef bit<48> timestamp_t;
 const bit<16> ETHERTYPE_IPV4 = 16w0x0800;
 const bit<16> ETHERTYPE_TELEMETRY = 16w0x88B5;
 const bit<16> ETHERTYPE_PROBE = 16w0x9999;
+const bit<16> ETHERTYPE_DISCOVERY = 16w0x8899;
 const bit<32> CLONE_SESSION_DEFAULT = 32w250;
 const bit<32> INSTANCE_TYPE_INGRESS_CLONE = 32w1;
 const bit<8> TELEMETRY_MSG_PROBE = 8w0;
@@ -65,6 +66,15 @@ header telemetry_t {
     timestamp_t latency_value; // latência calculada
 }
 
+// cabeçalho para descoberta dinâmica de topologia (BFS Flood)
+header discovery_t {
+    bit<16> source_switch_id;
+    bit<16> source_port;
+    bit<8>  ttl;
+}
+
+// estrutura do relatório enviado para a CPU (removida em favor de tabela local de vizinhos)
+
 // metadados internos usados para controlar clone e medir processamento
 struct metadata {
     // preserva a sessão de clone entre ingress e egress do pacote clonado
@@ -93,6 +103,12 @@ struct metadata {
 
     // intervalo mínimo entre sondas para o índice monitorado
     timestamp_t probe_interval;
+
+    // identificador único deste switch na rede (atribuído pelo controlador)
+    bit<16> switch_id;
+
+    // porta de entrada preservada para evitar ping-pong no egress multicast
+    bit<9> ingress_port;
 }
 
 struct headers {
@@ -101,6 +117,7 @@ struct headers {
     udp_t udp;
     telemetry_t telemetry;
     probe_t probe;
+    discovery_t discovery;
 }
 
 // parser principal: identifica o tipo do quadro e extrai ipv4, udp, report ou telemetria
@@ -120,6 +137,7 @@ parser MyParser(packet_in packet,
             ETHERTYPE_IPV4: parse_ipv4;
             ETHERTYPE_TELEMETRY: parse_telemetry;
             ETHERTYPE_PROBE: parse_probe;
+            ETHERTYPE_DISCOVERY: parse_discovery;
             default: accept;
         }
     }
@@ -150,6 +168,11 @@ parser MyParser(packet_in packet,
         packet.extract(hdr.probe);
         transition accept;
     }
+
+    state parse_discovery {
+        packet.extract(hdr.discovery);
+        transition accept;
+    }
 }
 
 // bloco de verificação de checksum: mantido vazio pois o foco é telemetria
@@ -177,6 +200,9 @@ register<bit<48>>(1024) probe_t1_reg;
 
 // registrador stateful que guarda o delta_t calculado para capacidade do enlace
 register<bit<48>>(1024) capacity_delta_reg;
+
+// registrador stateful que funciona como Tabela de Vizinhos (Porta Local -> ID do Switch Vizinho)
+register<bit<16>>(1024) neighbor_id_reg;
 
 // ingress: encaminha ipv4, cria sondas por clone, reflete telemetria e calcula latência final
 control MyIngress(inout headers hdr,
@@ -282,6 +308,18 @@ control MyIngress(inout headers hdr,
         default_action = drop();
     }
 
+    // tabela global para atribuir o ID do switch local (preenchida pelo controlador)
+    action set_switch_id(bit<16> switch_id) {
+        meta.switch_id = switch_id;
+    }
+    table node_info {
+        actions = {
+            set_switch_id;
+        }
+        size = 1;
+        default_action = set_switch_id(0);
+    }
+
     apply {
         // inicializa metadados para um estado previsível a cada pacote
         meta.clone_enable = 0;
@@ -291,6 +329,10 @@ control MyIngress(inout headers hdr,
         meta.now_ts = 0;
         meta.last_probe_ts = 0;
         meta.probe_interval = 0;
+        meta.ingress_port = standard_metadata.ingress_port;
+
+        // carrega informações globais do switch
+        node_info.apply();
 
         // fluxo de dados: pacote ipv4 normal sem cabeçalho de telemetria
         if (hdr.ipv4.isValid() && !hdr.telemetry.isValid()) {
@@ -408,6 +450,24 @@ control MyIngress(inout headers hdr,
                 }
                 drop();
             }
+        } else if (hdr.discovery.isValid()) {
+            // fluxo da descoberta dinâmica de topologia
+            if (hdr.discovery.ttl > 0) {
+                hdr.discovery.ttl = hdr.discovery.ttl - 1;
+
+                // Tabela de Vizinhos: salva o ID do switch vizinho no índice da porta de entrada local
+                if (hdr.discovery.source_switch_id != 0) {
+                    neighbor_id_reg.write((bit<32>)standard_metadata.ingress_port, hdr.discovery.source_switch_id);
+                }
+
+                // Prepara pacote para propagação em flood (BFS)
+                hdr.discovery.source_switch_id = meta.switch_id;
+                
+                // Manda para o Multicast Group de Flood (configurado no controlador como 1 = todas as portas)
+                standard_metadata.mcast_grp = 1;
+            } else {
+                drop();
+            }
         }
     }
 }
@@ -445,6 +505,14 @@ control MyEgress(inout headers hdr,
             // no refletor, calcula o tempo de processamento local da sonda.
             bit<48> t_egress = standard_metadata.egress_global_timestamp;
             hdr.telemetry.t_proc = t_egress - meta.s2_ingress_time;
+        } else if (hdr.discovery.isValid()) {
+            // se o pacote de flood for direcionado para a porta de onde ele veio (ping-pong), descarta
+            if ((bit<9>)standard_metadata.egress_port == meta.ingress_port) {
+                mark_to_drop(standard_metadata);
+            } else {
+                // atualiza a porta de saída antes de ir para o vizinho
+                hdr.discovery.source_port = (bit<16>)standard_metadata.egress_port;
+            }
         }
     }
 }
@@ -474,7 +542,7 @@ control MyComputeChecksum(inout headers hdr, inout metadata meta) {
 }
 
 // deparser: emite cabeçalhos válidos na ordem do wire format.
-// ordem: ethernet → ipv4 → udp → telemetry → probe
+// ordem: ethernet → ipv4 → udp → telemetry → probe → discovery
 control MyDeparser(packet_out packet, in headers hdr) {
     apply {
         packet.emit(hdr.ethernet);
@@ -482,6 +550,7 @@ control MyDeparser(packet_out packet, in headers hdr) {
         packet.emit(hdr.udp);
         packet.emit(hdr.telemetry);
         packet.emit(hdr.probe);
+        packet.emit(hdr.discovery);
     }
 }
 
