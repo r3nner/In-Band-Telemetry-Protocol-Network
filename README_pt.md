@@ -1,221 +1,63 @@
-# Telemetria In-Band — Ecossistema SDN
+# Projeto de Telemetria In-Band e Descoberta Dinâmica (Digital Twin)
 
-Laboratório P4/BMv2/Mininet para telemetria ativa in-band de latência, throughput, atraso de transmissão e capacidade do enlace (packet-pair), sem a necessidade de banco de dados ou CLI central.
+Este projeto implementa um ecossistema **Software-Defined Networking (SDN)** utilizando **P4/BMv2** e **Mininet**. Ele suporta telemetria ativa in-band (latência, throughput, atraso de transmissão, packet-pair para capacidade) e um mecanismo inovador de **Descoberta Dinâmica de Topologia** para a geração de um **Gêmeo Digital (Digital Twin)** da rede em tempo real.
 
-## Arquitetura Simplificada
+Toda a lógica de descoberta de rotas e mitigação de loops é feita diretamente no **Plano de Dados (Data Plane)** pelo hardware/simulador P4, sem depender de pacotes de controle constantes sendo enviados à CPU.
 
-1. O switch P4 intercepta quadros ou clona sondas para calcular a telemetria em Data Plane.
-2. Os resultados (tempos, bytes, comprimentos) são armazenados em `registers` nativos do P4 (SRAM).
-3. Scripts Python independentes consultam esses `registers` via Thrift (API padrão do BMv2) de forma desacoplada, calculam a métrica e a exibem na tela.
+## Visão Geral do Software
 
-## Estrutura do repositório
-
-```
-├── Dockerfile / docker-compose.yml    # Ambiente Docker pronto
-├── p4/main.p4                         # Plano de dados P4_16 v1model
-├── scripts/
-│   ├── setup_ubuntu.sh                # Bootstrap (PI, BMv2, p4c, Mininet)
-│   ├── health_check.sh                # Verificação da toolchain
-│   └── build_p4.sh                    # Compila main.p4 → build/main.json
-├── topologies/
-│   ├── p4_mininet.py                  # Integração BMv2 + Mininet
-│   ├── linear_topo.py                 # h1-s1-s2-h2
-│   ├── triangle_topo.py               # h1-s1-s2-s3-h2 + s1-s3
-│   └── packet_pair_topo.py            # Dispersão de packet-pair
-├── control_plane/
-│   ├── program_linear.sh              # Programa switches (topologia linear)
-│   ├── program_triangle.sh            # Programa switches (topologia triangular)
-│   ├── program_packet_pair.sh         # Programa sondas de packet-pair
-│   ├── read_latency.py                # Leitura de registrador de latência
-│   ├── read_throughput.py             # Leitura de contador de vazão
-│   ├── read_transmission_delay.py     # Estimativa baseada no tamanho do pacote
-│   ├── read_link_capacity.py          # Leitura de registrador de dispersão (delta_t)
-│   ├── run_throughput_test.py         # Automação de vazão via iperf
-│   ├── send_probes.py                 # Scapy para forjar sonda no packet-pair
-│   └── test_link_capacity.py          # Automação do packet-pair
-├── build/main.json                    # Artefato compilado para BMv2
-```
-
-## Pré-requisitos
-
-- **Docker Desktop** (Windows/Mac) ou **Ubuntu Linux** com `sudo`.
-- Acesso à internet (apenas no primeiro build).
+O software é dividido em duas grandes camadas:
+1. **Plano de Dados (P4):** Escrito em linguagem P4_16 (`main.p4`). É responsável por processar os pacotes linha por linha. Ele contém tabelas de roteamento, tabelas de controle multicast (para replicação de pacotes), e registradores (memória SRAM) que armazenam o estado da rede, como a **Tabela de Vizinhos** e contadores de tempo/bytes.
+2. **Plano de Controle (Python/Thrift):** Conjunto de scripts Python (`control_plane/`) que interagem com os switches P4. Eles não processam pacotes, mas sim injetam regras nas tabelas, disparam pacotes forjados na rede (usando a biblioteca `Scapy`) e fazem a leitura assíncrona da memória SRAM (registradores) do switch através da API Thrift para extrair métricas e gerar o arquivo de estado da rede (CSV).
 
 ---
 
-## Início Rápido — Docker (Recomendado)
+## Arquitetura de Descoberta Dinâmica (O Gêmeo Digital)
 
-### Passo 1: Build e iniciar o container
+O mecanismo de descoberta de topologia funciona através de um processo chamado **Stateful BFS Flooding** (Inundação em Largura com Guarda de Estado), operando puramente no Data Plane:
 
+1. **Injeção da Sonda:** O controlador forja um único pacote (Sonda de Descoberta) com `EtherType 0x8899` e injeta em um switch raiz.
+2. **Flooding (Inundação):** Quando o Switch P4 recebe a sonda, ele insere o seu próprio ID no pacote e clona/replica (Multicast) esse pacote para todas as suas outras portas ativas.
+3. **Aprendizado Bidirecional:** Quando o Switch vizinho recebe a sonda, ele lê o ID do switch remetente no pacote e salva no seu `neighbor_id_reg` (Registrador de Vizinhos) no exato índice da porta em que o pacote entrou.
+4. **Quebra de Loop (Stateful):** Redes com flooding podem gerar tempestades infinitas de pacotes (Broadcast Storms). Para resolver isso, antes de propagar um pacote adiante, o Switch P4 verifica no seu registrador se ele **já conhecia** o remetente daquela sonda. Se já conhecia, ele destrói (Drop) a sonda imediatamente. Isso permite que a sonda faça exatamente 1 "ping-pong" para que ambos os lados do cabo aprendam quem é o vizinho, e a tempestade de pacotes cessa naturalmente e de forma extremamente rápida.
+5. **Geração do Gêmeo Digital:** Após a poeira da inundação baixar, o Controlador SDN (script Python) faz uma varredura (Crawling) acessando o Thrift Port do primeiro switch. Ele lê a tabela de vizinhos, encontra quem está conectado, salta para os IPs de Thrift desses vizinhos descobertos, e repete o processo recursivamente. No fim, ele compila todos os links descobertos em um arquivo CSV (`network_state.csv`), representando o estado exato da rede naquele instante.
+
+---
+
+## Passo a Passo: Descobrindo a Topologia da Rede
+
+Para gerar o Digital Twin da rede em um determinado instante, abra seu terminal (com o Docker rodando e os arquivos compilados) e siga os passos abaixo. São necessários dois terminais interativos dentro do container.
+
+### 1. Iniciar a Rede (Terminal 1)
+Levante a topologia linear com os switches virtuais BMv2.
 ```bash
-docker compose up -d --build
-```
-
-> O primeiro build demora ~30-60 min (compila p4c, BMv2, PI do zero). Builds seguintes usam cache.
-
-### Passo 2: Entrar no container
-
-```bash
-docker exec -it p4-mininet bash
-```
-
-A partir daqui, todos os comandos são executados **dentro do container**.
-
-### Passo 3: Compilar o P4 (se necessário)
-
-```bash
-cd /workspace
-./scripts/build_p4.sh
-```
-
-
-
-## Executar o Ecossistema Completo
-
-Você precisa de **2 terminais** abertos no container simultaneamente.
-
-### Terminal 1 — Iniciar a Rede (Mininet)
-
-```bash
-docker exec -it p4-mininet bash
-cd /workspace
 sudo python3 topologies/linear_topo.py --json build/main.json
 ```
+**O que acontece:** O script usa o Mininet para alocar espaços isolados de rede, criando hosts (`h1`, `h2`) e switches (`s1`, `s2`) e conectando-os fisicamente por portas virtuais. O arquivo `main.json` instrui o switch a rodar o nosso código P4. Deixe esse terminal aberto (você estará no CLI `mininet>`).
 
-O prompt `mininet>` aparecerá. **Deixe este terminal aberto.**
-
-### Terminal 2 — Programar os Switches
-
+### 2. Inicializar as Regras SDN (Terminal 2)
+Em outro terminal no mesmo container, execute:
 ```bash
-docker exec -it p4-mininet bash
-cd /workspace
-bash ./control_plane/program_linear.sh
+bash ./control_plane/program_sdn.sh
 ```
+**O que acontece:** Este script usa a ferramenta `simple_switch_CLI` para popular as tabelas P4 via Thrift. Ele atribui um ID único para cada Switch (ex: `s1` = ID 1) inserindo uma regra na tabela `node_info`. Também cria os grupos de Multicast no motor de replicação do BMv2, permitindo que a sonda de descoberta seja espelhada para todas as portas.
 
-### Terminal 2 — Ler as Métricas
-
-Com o tráfego rodando, use um terminal separado para invocar os leitores Python via protocolo Thrift:
-
+### 3. Disparar a Sonda de Descoberta (Terminal 1)
+No prompt do Mininet (`mininet>`), injete o pacote de descoberta:
 ```bash
-# Ler Latência
-python3 control_plane/read_latency.py --thrift-port 9090 --indices 2
-
-# Ler Vazão (rodará indefinidamente atualizando por segundo)
-python3 control_plane/read_throughput.py --thrift-port 9090 --indices 2
-
-# Ler Atraso de Transmissão (assumindo link configurado com 10 Mbps)
-python3 control_plane/read_transmission_delay.py --thrift-port 9090 --indices 2 --link-bw-mbps 10
+mininet> h1 python3 control_plane/send_discovery.py --iface h1-eth0
 ```
+**O que acontece:** O host `h1` usa o pacote `Scapy` do Python para construir um quadro Ethernet cru com o tipo customizado `0x8899`. Como esse comando é rodado "dentro" do `h1`, o pacote entra fisicamente na porta do switch `s1`. O P4 intercepta, reconhece o tipo, e dá o gatilho na Arquitetura de Flooding (explicada na seção anterior). Em milissegundos, toda a rede descobre os seus vizinhos bidirecionalmente e os salva na SRAM.
+
+### 4. Gerar o Digital Twin (Terminal 2)
+Com a rede já autodescoberta na memória dos switches, rode o extrator:
+```bash
+python3 control_plane/sdn_controller.py
+```
+**O que acontece:** O Python conecta no `s1` (porta Thrift `9090`), pede para ler o array do `neighbor_id_reg`. Ele descobre que na porta 2 há um vizinho com ID 2 (`s2`). Ele anota a conexão, conecta no Thrift do `s2` (`9091`), faz a mesma leitura e cruza os dados. Ao finalizar a recursão, ele cospe o arquivo `network_state.csv` detalhando cada link e porta bidirecional da sua rede.
 
 ---
 
-## Executar: Topologia Triangular
+## Demais Métricas
 
-Mesma lógica, mas com 3 switches:
-
-```bash
-# Terminal 1
-sudo python3 topologies/triangle_topo.py --json build/main.json
-
-# Terminal 2
-bash ./control_plane/program_triangle.sh
-
-# Terminal 2 (Leitura)
-python3 control_plane/read_latency.py --thrift-port 9090 --indices 2,3
-
-# Terminal 1 (Mininet)
-mininet> h1 ping -c 5 10.0.20.2   # Rota via S2
-mininet> h1 ping -c 5 10.0.30.2   # Rota direta via S3
-```
-
-
-
-## Visualizando as Métricas (Passo a Passo)
-
-Abaixo explicamos como testar cada um dos 4 parâmetros de rede suportados por esta arquitetura, detalhando o comando a ser executado e a mecânica por trás da medição.
-
-### 1. Latência (Latency)
-**Como funciona:** 
-O Switch de origem clona pacotes de dados e cria uma sonda (Probe) de telemetria inserindo seu timestamp de envio ($t_{send}$). O Switch destino (refletor) recebe a sonda, marca o tempo de processamento gasto internamente ($t_{proc}$) e a devolve. A origem recebe de volta, pega seu tempo atual ($t_{recv}$) e calcula a ida e volta exata via hardware: `(t_recv - t_send - t_proc) / 2`.
-O resultado é gravado no registrador do Switch e enviado para o Control Plane.
-
-**Passo a passo:**
-1. Inicie a topologia e programe o switch:
-   ```bash
-   sudo python3 topologies/linear_topo.py --json build/main.json
-   bash ./control_plane/program_linear.sh
-   ```
-2. Gere o tráfego (no terminal do Mininet):
-   ```bash
-   mininet> h1 ping -c 5 10.0.0.2
-   ```
-3. Leia o registrador de latência diretamente do P4:
-   ```bash
-   python3 control_plane/read_latency.py --thrift-port 9090 --indices 2
-   ```
-
-### 2. Vazão (Throughput)
-**Como funciona:**
-O Switch P4 possui contadores em hardware que somam o tamanho de cada pacote que sai por uma porta. Os scripts de control plane podem consultar esse contador (`throughput_reg`) via Thrift e subtrair o valor anterior para obter bytes/segundo.
-
-**Passo a passo:**
-1. Execute o teste automatizado (que usa `iperf` por baixo dos panos para gerar tráfego TCP na topologia):
-   ```bash
-   sudo python3 control_plane/run_throughput_test.py --topology linear --json build/main.json --link-bw-mbps 10
-   ```
-*Nota: Este comando levanta a topologia, inicia o iperf entre H1 e H2 e interroga os registradores `throughput_reg` para calcular e exibir a banda (bps) em tempo real.*
-
-### 3. Atraso de Transmissão (Transmission Delay)
-**Como funciona:**
-É uma métrica analítico-híbrida. O hardware P4 armazena em um registrador o tamanho ($L$) do último pacote encaminhado. O plano de controle (script Python) faz a leitura deste registrador e o divide pela configuração de velocidade física do enlace ($R$, ex: 10 Mbps) que o Mininet configurou, resultando na fórmula: $d_{trans} = L / R$.
-
-**Passo a passo:**
-1. Execute a topologia definindo a banda física dos links (ex: 10 Mbps):
-   ```bash
-   sudo python3 topologies/linear_topo.py --json build/main.json --link-bw-mbps 10
-   bash ./control_plane/program_linear.sh
-   ```
-2. Gere um ping: `mininet> h1 ping -c 1 10.0.0.2`
-3. Leia o atraso de transmissão (passando a mesma banda configurada para o cálculo matemático no script):
-   ```bash
-   python3 control_plane/read_transmission_delay.py --thrift-port 9090 --indices 2 --link-bw-mbps 10
-   ```
-
-### 4. Capacidade do Link (In-Band Packet-Pair)
-**Como funciona:**
-A capacidade física real do link é descoberta utilizando dois pacotes em rajada. 
-O script gera *apenas 1 pacote* de sonda e envia ao **Switch Injetor**. O P4 deste switch usa o motor de hardware para clonar o pacote e jogar os dois na mesma fila de saída com prioridade máxima (Packet-Pair Back-to-Back). 
-Ao cruzar o gargalo da rede, eles se distanciam (dispersão). O **Switch Receptor** anota a hora que o Pacote 1 chegou ($t_1$). Quando o Pacote 2 chega, ele faz $\Delta T = t_2 - t_1$ usando as ALUs do P4, gravando o resultado de $\Delta T$ num registrador. O plano de controle simplesmente lê o $\Delta T$ via Thrift e finaliza o cálculo: $C = L_{bits} / \Delta T$.
-
-**Passo a passo:**
-Com a topologia (linear ou triangular) rodando e configurada em um terminal, simplesmente execute o teste de capacidade em outro:
-```bash
-python3 control_plane/test_link_capacity.py --host h1 --thrift-port 9091 --frame-size 1500
-```
-
----
-
-## Solução de problemas
-
-- **Nenhum valor de telemetria mudando:**
-  - Verifique se o script de control-plane finalizou sem erros.
-  - Confirme se sessões de espelhamento estão configuradas (`mirroring_add`).
-  - Verifique se o tráfego está atravessando as portas monitoradas.
-
-- **`simple_switch_CLI` falha logo após a inicialização:**
-  - Tente novamente após um pequeno atraso; os scripts incluem verificações automáticas.
-
-- **Saída de registrador permanece zero:**
-  - Garanta que os pings sejam direcionados aos endereços nas tabelas de rota.
-  - Reduza o `probe_interval_us` via `config set` para aumentar a frequência.
-
-- **Volume Docker vazio no Windows:**
-  - O Docker Desktop pode falhar ao montar volumes de discos de rede (Google Drive, OneDrive). O `Dockerfile` já inclui `COPY . /workspace` como fallback.
-
-## Observações
-
-`build/main.json` é gerado. Recompile após alterar `p4/main.p4`:
-
-```bash
-./scripts/build_p4.sh
-```
+As outras métricas de telemetria também continuam disponíveis na camada de plano de controle. Use os scripts na pasta `control_plane/` (como `read_latency.py`, `read_throughput.py`, `read_link_capacity.py`, etc) passando o `thrift-port` para ler os dados de hardware instantaneamente.
