@@ -81,6 +81,17 @@ O controlador mapeará todo o labirinto de switches perfeitamente!
 [OK] Digital Twin exported to network_state.csv
 ```
 
+### 5. Visualizar o CSV Gerado
+O arquivo `network_state.csv` é salvo dentro do contêiner Docker. Para sincronizá-lo com a sua máquina local (host) ou apenas visualizar o conteúdo, você pode usar os comandos abaixo em um terminal do seu Windows/Linux (fora do Mininet):
+
+```bash
+# Para visualizar o CSV diretamente no terminal:
+docker exec p4-mininet cat /workspace/network_state.csv
+
+# Para copiar o CSV para a sua máquina (na pasta atual):
+docker cp p4-mininet:/workspace/network_state.csv ./
+```
+
 ---
 
 ## Demais Métricas
