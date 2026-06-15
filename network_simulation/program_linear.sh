@@ -46,6 +46,7 @@ S2_THRIFT_PORT="9091"
 PROBE_INTERVAL_US="1000000"
 
 S1_COMMANDS="reset_state
+table_set_default node_info set_switch_id 1
 mirroring_add 250 2
 
 table_add ipv4_lpm ipv4_forward 10.0.0.2/32 => 00:00:00:00:02:02 00:aa:00:00:01:02 2
@@ -63,6 +64,7 @@ table_add capacity_probe_forward clone_probe 1 => 2 253
 "
 
 S2_COMMANDS="reset_state
+table_set_default node_info set_switch_id 2
 mirroring_add 250 1
 
 table_add ipv4_lpm ipv4_forward 10.0.0.2/32 => 00:00:00:00:02:02 00:aa:00:00:02:02 2

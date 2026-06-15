@@ -455,16 +455,25 @@ control MyIngress(inout headers hdr,
             if (hdr.discovery.ttl > 0) {
                 hdr.discovery.ttl = hdr.discovery.ttl - 1;
 
+                bit<16> known_neighbor = 0;
+                neighbor_id_reg.read(known_neighbor, (bit<32>)standard_metadata.ingress_port);
+
                 // Tabela de Vizinhos: salva o ID do switch vizinho no índice da porta de entrada local
                 if (hdr.discovery.source_switch_id != 0) {
                     neighbor_id_reg.write((bit<32>)standard_metadata.ingress_port, hdr.discovery.source_switch_id);
                 }
 
-                // Prepara pacote para propagação em flood (BFS)
-                hdr.discovery.source_switch_id = meta.switch_id;
-                
-                // Manda para o Multicast Group de Flood (configurado no controlador como 1 = todas as portas)
-                standard_metadata.mcast_grp = 1;
+                // Propaga (flood) APENAS se for uma informação nova.
+                // Isso quebra loops infinitos (Storm) e permite que ambos os lados do link se conheçam (1 ping-pong exato).
+                if (hdr.discovery.source_switch_id == 0 || known_neighbor != hdr.discovery.source_switch_id) {
+                    // Prepara pacote para propagação em flood (BFS)
+                    hdr.discovery.source_switch_id = meta.switch_id;
+                    
+                    // Manda para o Multicast Group de Flood (configurado no controlador como 1 = todas as portas)
+                    standard_metadata.mcast_grp = 1;
+                } else {
+                    drop();
+                }
             } else {
                 drop();
             }
@@ -506,13 +515,10 @@ control MyEgress(inout headers hdr,
             bit<48> t_egress = standard_metadata.egress_global_timestamp;
             hdr.telemetry.t_proc = t_egress - meta.s2_ingress_time;
         } else if (hdr.discovery.isValid()) {
-            // se o pacote de flood for direcionado para a porta de onde ele veio (ping-pong), descarta
-            if ((bit<9>)standard_metadata.egress_port == meta.ingress_port) {
-                mark_to_drop(standard_metadata);
-            } else {
-                // atualiza a porta de saída antes de ir para o vizinho
-                hdr.discovery.source_port = (bit<16>)standard_metadata.egress_port;
-            }
+            // Atualiza a porta de saída antes de ir para o vizinho.
+            // Não dropamos o ping-pong no Egress porque precisamos que o pacote volte 1 vez 
+            // para que o vizinho também aprenda nossa existência. O Ingress agora barra o loop infinito.
+            hdr.discovery.source_port = (bit<16>)standard_metadata.egress_port;
         }
     }
 }

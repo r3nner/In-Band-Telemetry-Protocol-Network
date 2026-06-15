@@ -51,6 +51,7 @@ S3_THRIFT_PORT="9092"
 PROBE_INTERVAL_US="1000000"
 
 S1_COMMANDS="reset_state
+table_set_default node_info set_switch_id 1
 mirroring_add 250 3
 mirroring_add 251 2
 
@@ -81,6 +82,7 @@ table_add capacity_probe_forward clone_probe 0x1235 => 3 254
 "
 
 S2_COMMANDS="reset_state
+table_set_default node_info set_switch_id 2
 mirroring_add 250 3
 mirroring_add 251 1
 
@@ -107,6 +109,7 @@ table_add capacity_probe_forward clone_probe 0x1236 => 3 253
 "
 
 S3_COMMANDS="reset_state
+table_set_default node_info set_switch_id 3
 mirroring_add 250 2
 mirroring_add 251 1
 

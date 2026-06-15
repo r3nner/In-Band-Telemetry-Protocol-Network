@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
 S1_COMMANDS='reset_state
+table_set_default node_info set_switch_id 1
 
 # Existing IPv4 forwarding is kept so h1/h2 can still be used for regression tests.
 table_add ipv4_lpm ipv4_forward 10.0.0.2/32 => 00:00:00:00:02:02 00:aa:00:00:01:02 2
@@ -15,6 +16,7 @@ table_add capacity_probe_forward clone_probe 0x1234 => 2 253
 '
 
 S2_COMMANDS='reset_state
+table_set_default node_info set_switch_id 2
 
 table_add ipv4_lpm ipv4_forward 10.0.0.2/32 => 00:00:00:00:02:02 00:aa:00:00:02:02 2
 table_add ipv4_lpm ipv4_forward 10.0.0.1/32 => 00:00:00:00:01:01 00:aa:00:00:02:01 1
