@@ -81,7 +81,14 @@ O controlador mapeará todo o labirinto de switches perfeitamente!
 [OK] Digital Twin exported to network_state.csv
 ```
 
-### 5. Visualizar o CSV Gerado
+### 5. Gerar Tráfego Real para Métricas (Opcional)
+Como o Gêmeo Digital reflete o estado exato da memória (SRAM) do switch no instante em que foi executado, caso não haja fluxo na rede, métricas como `Throughput_bps` estarão zeradas. Para gerar uma carga real e embasar o throughput, utilize o `iperf` embutido no Mininet (no Terminal 1):
+```bash
+mininet> iperf h1 h2
+```
+Imediatamente após a conclusão do teste, repita o Passo 4 (`sdn_controller.py`). O novo CSV gerado mostrará a coluna `Throughput_bps` com altos valores para os switches da rota percorrida.
+
+### 6. Visualizar o CSV Gerado
 O arquivo `network_state.csv` é salvo dentro do contêiner Docker. Para sincronizá-lo com a sua máquina local (host) ou apenas visualizar o conteúdo, você pode usar os comandos abaixo em um terminal do seu Windows/Linux (fora do Mininet):
 
 ```bash
