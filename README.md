@@ -54,15 +54,21 @@ python3 telemetry_system/deploy_telemetry.py
 ```
 *(Expected output: "Telemetry Multicast successfully deployed to 5 switches".)*
 
-### 3. Dispatch the Discovery Probe (Terminal 1)
-At the Mininet prompt (`mininet>`), ask Host 1 to unleash the Flooding Probe into the network:
+### 3. Generate Real Traffic for Metrics (Optional)
+Because the Digital Twin will reflect the exact SRAM state of the switch at the moment of execution, it is recommended to generate a real load in the network before extracting it, so the `Throughput_bps` metric is not zero. Use the built-in `iperf` tool in Mininet (in Terminal 1):
+```bash
+mininet> iperf h1 h2
+```
+
+### 4. Dispatch the Discovery Probe (Terminal 1)
+After generating traffic, at the Mininet prompt (`mininet>`), ask Host 1 to unleash the Flooding Probe into the network:
 ```bash
 mininet> h1 python3 telemetry_system/send_discovery.py --iface h1-eth0
 ```
 > The P4 Data Plane will handle all the complex topology Loop mitigation behind the scenes in microseconds.
 
-### 4. Extract the Digital Twin (Terminal 2)
-Make your controller collect the complete hardware view and build the CSV:
+### 5. Extract the Digital Twin (Terminal 2)
+Make your controller collect the complete hardware view and build the CSV. Because traffic was generated in the previous step, the switches along the routed path will show high values in the `Throughput_bps` column:
 ```bash
 python3 telemetry_system/sdn_controller.py
 ```
@@ -80,13 +86,6 @@ The controller will perfectly map out the entire labyrinth of switches!
 ...
 [OK] Digital Twin exported to network_state.csv
 ```
-
-### 5. Generate Real Traffic for Metrics (Optional)
-Because the Digital Twin reflects the exact SRAM state of the switch at the moment of execution, metrics like `Throughput_bps` will be zero if there is no traffic in the network. To generate a real load and populate the throughput, use the built-in `iperf` tool in Mininet (in Terminal 1):
-```bash
-mininet> iperf h1 h2
-```
-Immediately after the test finishes, repeat Step 4 (`sdn_controller.py`). The newly generated CSV will show the `Throughput_bps` column populated with high values for the switches along the routing path.
 
 ### 6. View the Generated CSV
 The `network_state.csv` file is saved inside the Docker container. To synchronize it to your host machine or view its contents, run the following commands in your host's terminal (Windows/Linux):

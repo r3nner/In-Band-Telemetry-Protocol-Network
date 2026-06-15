@@ -54,15 +54,21 @@ python3 telemetry_system/deploy_telemetry.py
 ```
 *(Saída esperada: "Telemetry Multicast successfully deployed to 5 switches".)*
 
-### 3. Disparar a Sonda de Descoberta (Terminal 1)
-No prompt do Mininet (`mininet>`), peça para o Host 1 soltar a Sonda de Inundação na rede:
+### 3. Gerar Tráfego Real para Métricas (Opcional)
+Como o Gêmeo Digital refletirá o estado exato da memória (SRAM) do switch no instante em que for executado, é recomendado gerar uma carga real na rede antes de extraí-lo, para que a métrica de `Throughput_bps` não fique zerada. Utilize o `iperf` embutido no Mininet (no Terminal 1):
+```bash
+mininet> iperf h1 h2
+```
+
+### 4. Disparar a Sonda de Descoberta (Terminal 1)
+Após gerar tráfego, no prompt do Mininet (`mininet>`), peça para o Host 1 soltar a Sonda de Inundação na rede:
 ```bash
 mininet> h1 python3 telemetry_system/send_discovery.py --iface h1-eth0
 ```
 > O Data Plane P4 fará toda a mitigação dos Loops da topologia complexa nos bastidores em microssegundos.
 
-### 4. Extrair o Gêmeo Digital (Terminal 2)
-Faça o seu controlador coletar a visão completa do hardware e montar o CSV:
+### 5. Extrair o Gêmeo Digital (Terminal 2)
+Faça o seu controlador coletar a visão completa do hardware e montar o CSV. Como o tráfego foi gerado no passo anterior, os switches da rota percorrida terão valores altos na coluna `Throughput_bps`:
 ```bash
 python3 telemetry_system/sdn_controller.py
 ```
@@ -80,13 +86,6 @@ O controlador mapeará todo o labirinto de switches perfeitamente!
 ...
 [OK] Digital Twin exported to network_state.csv
 ```
-
-### 5. Gerar Tráfego Real para Métricas (Opcional)
-Como o Gêmeo Digital reflete o estado exato da memória (SRAM) do switch no instante em que foi executado, caso não haja fluxo na rede, métricas como `Throughput_bps` estarão zeradas. Para gerar uma carga real e embasar o throughput, utilize o `iperf` embutido no Mininet (no Terminal 1):
-```bash
-mininet> iperf h1 h2
-```
-Imediatamente após a conclusão do teste, repita o Passo 4 (`sdn_controller.py`). O novo CSV gerado mostrará a coluna `Throughput_bps` com altos valores para os switches da rota percorrida.
 
 ### 6. Visualizar o CSV Gerado
 O arquivo `network_state.csv` é salvo dentro do contêiner Docker. Para sincronizá-lo com a sua máquina local (host) ou apenas visualizar o conteúdo, você pode usar os comandos abaixo em um terminal do seu Windows/Linux (fora do Mininet):
