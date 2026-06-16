@@ -62,13 +62,14 @@ mininet> h1 python3 telemetry_system/send_discovery.py --iface h1-eth0
 > The P4 Data Plane will handle all the complex topology Loop mitigation behind the scenes and save the topology in its SRAM memory.
 
 ### 4. Generate Real Traffic for Metrics (Terminal 1)
-To ensure the `Throughput_bps` metric is not zero in your CSV, generate some traffic in the network. The `iperf` command will test the network for about 10 seconds. **Wait for the test to finish on its own** (do not press `Ctrl+C`):
+To ensure the `Throughput_bps` metric is not zero in your CSV, generate some traffic in the network. Instead of using `iperf` (which can fail due to the naturally high latency of mesh P4 simulators), we will use a **Ping Flood** to fire hundreds of packets in a few seconds:
 ```bash
-mininet> iperf h1 h2
+mininet> h1 ping -f -c 500 h2
 ```
+*(Wait a few seconds until it reports that 500 packets were transmitted and received)*
 
 ### 5. Extract the Digital Twin (Terminal 2)
-After `iperf` finishes, make your controller collect the complete hardware view and build the CSV. Because traffic was generated in the previous step, the switches along the routed path will show accumulated values in the `Throughput_bps` column:
+After the `ping` finishes, make your controller collect the complete hardware view and build the CSV. Because traffic was generated in the previous step, the switches along the routed path will show accumulated values in the `Throughput_bps` column:
 ```bash
 python3 telemetry_system/sdn_controller.py
 ```
