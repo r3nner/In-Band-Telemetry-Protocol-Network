@@ -54,21 +54,21 @@ python3 telemetry_system/deploy_telemetry.py
 ```
 *(Saída esperada: "Telemetry Multicast successfully deployed to 5 switches".)*
 
-### 3. Gerar Tráfego Real para Métricas (Opcional)
-Como o Gêmeo Digital refletirá o estado exato da memória (SRAM) do switch no instante em que for executado, é recomendado gerar uma carga real na rede antes de extraí-lo, para que a métrica de `Throughput_bps` não fique zerada. Utilize o `iperf` embutido no Mininet (no Terminal 1):
+### 3. Disparar a Sonda de Descoberta (Terminal 1)
+No prompt do Mininet (`mininet>`), peça para o Host 1 soltar a Sonda de Inundação na rede:
+```bash
+mininet> h1 python3 telemetry_system/send_discovery.py --iface h1-eth0
+```
+> O Data Plane P4 fará toda a mitigação dos Loops da topologia complexa nos bastidores e salvará a topologia na memória SRAM.
+
+### 4. Gerar Tráfego Real para Métricas (Terminal 1)
+Para que a métrica de `Throughput_bps` não fique zerada no CSV, gere tráfego na rede. O comando `iperf` vai testar a rede por cerca de 10 segundos. **Aguarde o teste terminar sozinho** (não aperte `Ctrl+C`):
 ```bash
 mininet> iperf h1 h2
 ```
 
-### 4. Disparar a Sonda de Descoberta (Terminal 1)
-Após gerar tráfego, no prompt do Mininet (`mininet>`), peça para o Host 1 soltar a Sonda de Inundação na rede:
-```bash
-mininet> h1 python3 telemetry_system/send_discovery.py --iface h1-eth0
-```
-> O Data Plane P4 fará toda a mitigação dos Loops da topologia complexa nos bastidores em microssegundos.
-
 ### 5. Extrair o Gêmeo Digital (Terminal 2)
-Faça o seu controlador coletar a visão completa do hardware e montar o CSV. Como o tráfego foi gerado no passo anterior, os switches da rota percorrida terão valores altos na coluna `Throughput_bps`:
+Após o `iperf` finalizar, faça o seu controlador coletar a visão completa do hardware e montar o CSV. Como o tráfego foi gerado no passo anterior, os switches da rota percorrida terão valores acumulados na coluna `Throughput_bps`:
 ```bash
 python3 telemetry_system/sdn_controller.py
 ```

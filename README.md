@@ -54,21 +54,21 @@ python3 telemetry_system/deploy_telemetry.py
 ```
 *(Expected output: "Telemetry Multicast successfully deployed to 5 switches".)*
 
-### 3. Generate Real Traffic for Metrics (Optional)
-Because the Digital Twin will reflect the exact SRAM state of the switch at the moment of execution, it is recommended to generate a real load in the network before extracting it, so the `Throughput_bps` metric is not zero. Use the built-in `iperf` tool in Mininet (in Terminal 1):
+### 3. Dispatch the Discovery Probe (Terminal 1)
+At the Mininet prompt (`mininet>`), ask Host 1 to unleash the Flooding Probe into the network:
+```bash
+mininet> h1 python3 telemetry_system/send_discovery.py --iface h1-eth0
+```
+> The P4 Data Plane will handle all the complex topology Loop mitigation behind the scenes and save the topology in its SRAM memory.
+
+### 4. Generate Real Traffic for Metrics (Terminal 1)
+To ensure the `Throughput_bps` metric is not zero in your CSV, generate some traffic in the network. The `iperf` command will test the network for about 10 seconds. **Wait for the test to finish on its own** (do not press `Ctrl+C`):
 ```bash
 mininet> iperf h1 h2
 ```
 
-### 4. Dispatch the Discovery Probe (Terminal 1)
-After generating traffic, at the Mininet prompt (`mininet>`), ask Host 1 to unleash the Flooding Probe into the network:
-```bash
-mininet> h1 python3 telemetry_system/send_discovery.py --iface h1-eth0
-```
-> The P4 Data Plane will handle all the complex topology Loop mitigation behind the scenes in microseconds.
-
 ### 5. Extract the Digital Twin (Terminal 2)
-Make your controller collect the complete hardware view and build the CSV. Because traffic was generated in the previous step, the switches along the routed path will show high values in the `Throughput_bps` column:
+After `iperf` finishes, make your controller collect the complete hardware view and build the CSV. Because traffic was generated in the previous step, the switches along the routed path will show accumulated values in the `Throughput_bps` column:
 ```bash
 python3 telemetry_system/sdn_controller.py
 ```
